@@ -8,9 +8,13 @@ const auth = require('../middleware/auth');
 // ==========================================
 router.get('/', async (req, res) => {
   try {
-    const offers = await Offer.find()
-      .populate('author', 'fullName')
-      .sort({ createdAt: -1 });
+    // 💡 THE FIX: Filter out resolved offers
+    const offers = await Offer.find({ 
+      status: { $ne: 'resolved' } 
+    })
+    .populate('author', 'fullName')
+    .sort({ createdAt: -1 });
+
     res.json(offers);
   } catch (err) {
     console.error(err.message);
@@ -32,20 +36,19 @@ router.get('/me', auth, async (req, res) => {
 });
 
 // ==========================================
-// 3. GET SINGLE OFFER
+// 3. GET SINGLE OFFER (For OfferDetails.jsx)
 // ==========================================
-// ==========================================
-// 1. GET ALL REQUESTS (Public Feed)
-// ==========================================
-router.get('/', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    // 💡 THE FIX: Filter out resolved requests
-    const requests = await Request.find({ status: { $ne: 'resolved' } }) 
-      .populate('author', 'fullName')
-      .sort({ createdAt: -1 });
-    res.json(requests);
+    const item = await Offer.findById(req.params.id).populate('author', 'fullName');
+    if (!item) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+    res.json(item);
   } catch (err) {
-    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Invalid ID format' });
+    }
     res.status(500).send('Server Error');
   }
 });
@@ -75,39 +78,28 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ==========================================
-// 5. UPDATE OFFER CONTENT (For Edit Button)
-// Route: PATCH /api/offers/:id
-// ==========================================
-// ==========================================
-// 5. UPDATE REQUEST CONTENT (For Edit Button & Status Toggle)
-// ==========================================
-// routes/offers.js
-
-// ==========================================
-// UPDATE OFFER (Content & Status)
+// 5. UPDATE OFFER (Content & Status)
 // ==========================================
 router.patch('/:id', auth, async (req, res) => {
   try {
     let offer = await Offer.findById(req.params.id);
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    // Ensure the person updating is the owner
     if (offer.author.toString() !== req.user.id) {
       return res.status(401).json({ message: 'User not authorized' });
     }
 
-    const { title, description, location, status } = req.body;
+    const { title, description, location, status, category, availability } = req.body;
     
     if (title) offer.title = title;
     if (description) offer.description = description;
     if (location) offer.location = location;
-    
-    // 💡 This is the magic line for the dashboard button
+    if (category) offer.category = category;
+    if (availability) offer.availability = availability;
     if (status) offer.status = status.toLowerCase().trim(); 
 
     const updatedOffer = await offer.save();
     res.json(updatedOffer);
-
   } catch (err) {
     console.error("Offer Update Error:", err.message);
     res.status(500).send('Server Error');
@@ -123,13 +115,12 @@ router.delete('/:id', auth, async (req, res) => {
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
     if (offer.author.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Not authorized to delete this offer' });
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
     await offer.deleteOne();
     res.json({ message: 'Offer removed successfully' });
   } catch (err) {
-    console.error(err.message);
     res.status(500).send('Server Error');
   }
 });

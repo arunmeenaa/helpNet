@@ -8,9 +8,13 @@ const auth = require('../middleware/auth');
 // ==========================================
 router.get('/', async (req, res) => {
   try {
-    const requests = await Request.find()
-      .populate('author', 'fullName')
-      .sort({ createdAt: -1 });
+    // 💡 THE FIX: Add the filter to EXCLUDE resolved requests
+    const requests = await Request.find({ 
+      status: { $ne: 'resolved' } 
+    })
+    .populate('author', 'fullName')
+    .sort({ createdAt: -1 });
+
     res.json(requests);
   } catch (err) {
     console.error(err.message);
@@ -37,18 +41,13 @@ router.get('/me', auth, async (req, res) => {
 // ==========================================
 // 1. GET ALL REQUESTS (Public Feed)
 // ==========================================
-router.get('/', async (req, res) => {
-  try {
-    // 💡 THE FIX: Filter out resolved requests
-    const requests = await Request.find({ status: { $ne: 'resolved' } }) 
-      .populate('author', 'fullName')
-      .sort({ createdAt: -1 });
-    res.json(requests);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
-  }
-});
+// routes/requests.js AND routes/offers.js
+// routes/requests.js
+
+// ==========================================
+// GET ALL REQUESTS (Public Feed)
+// ==========================================
+
 
 // ==========================================
 // 4. CREATE NEW REQUEST
@@ -70,7 +69,21 @@ router.post('/', auth, async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
-
+// GET SINGLE OFFER/REQUEST
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await Offer.findById(req.params.id).populate('author', 'fullName');
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+    res.json(item);
+  } catch (err) {
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ message: 'Invalid ID format' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
 // ==========================================
 // 5. UPDATE REQUEST CONTENT (For Edit Button)
 // Route: PATCH /api/requests/:id

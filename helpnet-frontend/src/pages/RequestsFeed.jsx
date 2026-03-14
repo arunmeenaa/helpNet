@@ -117,54 +117,79 @@ const currentUser = JSON.parse(localStorage.getItem("user") || "null");
   </div>
 )}
 
-        {/* Requests Grid */}
-        {!loading && !error && filteredRequests.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRequests.map((req) => (
-              <div key={req._id} className="group flex flex-col h-full bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm hover:shadow-xl transition-all duration-300">
-                
-                <div className="flex justify-between items-start mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-gray-800 flex items-center justify-center text-blue-600 dark:text-cyan-400 font-bold text-sm">
-                      {req.author?.fullName ? req.author.fullName.charAt(0) : "?"}
-                    </div>
-                    <div>
-                      {/* We use req.author.fullName because we populated it in the backend! */}
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{req.author?.fullName || "Anonymous"}</p>
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{new Date(req.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                  <span className={`px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-full border ${getPriorityStyles(req.priority)}`}>
-                    {req.priority}
-                  </span>
-                </div>
+       {/* Requests Grid */}
+{!loading && !error && filteredRequests.length > 0 ? (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {filteredRequests.map((req) => {
+      // 💡 Check if the current user is the owner
+      const isOwner = currentUser?.id === req.author?._id;
 
-                <div className="flex-grow mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 line-clamp-2 leading-tight group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
-                    {req.title}
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 font-medium bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl">
-                    <span className="truncate">📍 {req.location}</span>
-                  </div>
-                </div>
-
-                {currentUser?.id === req.author?._id ? (
-                  <Link to="/dashboard">
-                    <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed transition-all">
-                      This is your request
-                    </button>
-                  </Link>
-                ) : (
-                  <Link to={`/request-details/${req._id}`}>
-                    <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 transition-all">
-                      I Can Help
-                    </button>
-                  </Link>
-                )}
-
+      return (
+        <div 
+          key={req._id} 
+          className={`group flex flex-col h-full rounded-3xl p-6 sm:p-8 transition-all duration-300 relative border ${
+            isOwner 
+              ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-400 dark:border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.2)] ring-2 ring-blue-500/20" 
+              : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-xl"
+          }`}
+        >
+          {/* 💡 "Your Post" Badge for clarity */}
+          {isOwner && (
+            <div className="absolute -top-3 left-6 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg uppercase tracking-widest z-20">
+              Your Request
+            </div>
+          )}
+          
+          <div className="flex justify-between items-start mb-5">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                isOwner ? "bg-blue-600 text-white shadow-md" : "bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-gray-800 text-blue-600 dark:text-cyan-400"
+              }`}>
+                {req.author?.fullName ? req.author.fullName.charAt(0) : "?"}
               </div>
-            ))}
+              <div>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                  {req.author?.fullName || "Anonymous"} 
+                  {isOwner && <span className="ml-2 text-[10px] text-blue-500">(You)</span>}
+                </p>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{new Date(req.createdAt).toLocaleDateString()}</p>
+              </div>
+            </div>
+            <span className={`px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-full border ${getPriorityStyles(req.priority)}`}>
+              {req.priority}
+            </span>
           </div>
+
+          <div className="flex-grow mb-6">
+            <h3 className={`text-xl font-bold mb-3 line-clamp-2 leading-tight transition-colors ${
+              isOwner ? "text-blue-700 dark:text-blue-400" : "text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-cyan-400"
+            }`}>
+              {req.title}
+            </h3>
+            <div className={`flex items-center gap-2 text-sm font-medium p-3 rounded-xl ${
+              isOwner ? "bg-blue-100/50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400"
+            }`}>
+              <span className="truncate">📍 {req.location}</span>
+            </div>
+          </div>
+
+          {isOwner ? (
+            <Link to="/dashboard">
+              <button className="w-full py-3.5 rounded-xl font-bold text-base bg-blue-600 text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-0.5 transition-all">
+                Manage My Request
+              </button>
+            </Link>
+          ) : (
+            <Link to={`/request-details/${req._id}`}>
+              <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20 hover:-translate-y-0.5 transition-all">
+                I Can Help
+              </button>
+            </Link>
+          )}
+        </div>
+      );
+    })}
+  </div>
         ) : !loading && !error && (
           <div className="text-center py-20 px-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No active requests</h3>

@@ -106,63 +106,85 @@ export default function AvailableHelp() {
   </div>
 )}
 
-        {!loading && !error && filteredOffers.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredOffers.map((offer) => (
-              <div
-                key={offer._id}
-                className="group flex flex-col h-full bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300"
-              >
-                <div className="flex justify-between items-start mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-500/10 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform duration-300">
-                      {getCategoryIcon(offer.category)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">
-                        {offer.author?.fullName || "Anonymous"}
-                      </p>
-                      <p className="text-xs font-medium text-teal-600 dark:text-teal-400">
-                        {offer.category}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+        {/* Offers Grid */}
+{!loading && !error && filteredOffers.length > 0 ? (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {filteredOffers.map((offer) => {
+      // 💡 Check if the current user is the owner
+      const isOwner = currentUser?.id === offer.author?._id;
 
-                <div className="flex-grow mb-6">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 line-clamp-2 leading-tight">
-                    {offer.title}
-                  </h3>
-
-                  <div className="space-y-2.5">
-                    <div className="flex items-start gap-2.5 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-medium">📍 {offer.location}</span>
-                    </div>
-                    <div className="flex items-start gap-2.5 text-sm text-gray-600 dark:text-gray-400">
-                      <span className="font-medium">
-                        🕒 {offer.availability}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Conditional Logic for the Connect Button */}
-                {currentUser?.id === offer.author?._id ? (
-                  <Link to="/dashboard">
-                    <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500 cursor-not-allowed transition-all">
-                      Manage Your Offer
-                    </button>
-                  </Link>
-                ) : (
-                  <Link to={`/offer-details/${offer._id}`}>
-                    <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gray-50 text-gray-700 border border-gray-200 hover:bg-teal-600 hover:text-white dark:bg-gray-800/50 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-teal-500 dark:hover:text-gray-950 transition-all duration-300">
-                      Connect
-                    </button>
-                  </Link>
-                )}
+      return (
+        <div 
+          key={offer._id} 
+          className={`group flex flex-col h-full rounded-3xl p-6 sm:p-8 transition-all duration-300 relative border ${
+            isOwner 
+              ? "bg-teal-50/50 dark:bg-teal-900/10 border-teal-400 dark:border-teal-500 shadow-[0_0_25px_rgba(20,184,166,0.2)] ring-2 ring-teal-500/20" 
+              : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-xl"
+          }`}
+        >
+          {/* 💡 "Your Offer" Badge */}
+          {isOwner && (
+            <div className="absolute -top-3 left-6 bg-teal-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg uppercase tracking-widest z-20">
+              Your Offer
+            </div>
+          )}
+          
+          <div className="flex justify-between items-start mb-5">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-inner transition-transform duration-300 ${
+                isOwner ? "bg-teal-600 text-white scale-110" : "bg-teal-50 dark:bg-teal-500/10"
+              }`}>
+                {getCategoryIcon(offer.category)}
               </div>
-            ))}
+              <div>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                  {offer.author?.fullName || "Anonymous"} 
+                  {isOwner && <span className="ml-2 text-[10px] text-teal-600 font-bold">(You)</span>}
+                </p>
+                <p className="text-xs font-medium text-teal-600 dark:text-teal-400">
+                  {offer.category}
+                </p>
+              </div>
+            </div>
           </div>
+
+          <div className="flex-grow mb-6">
+            <h3 className={`text-xl font-bold mb-4 line-clamp-2 leading-tight transition-colors ${
+              isOwner ? "text-teal-700 dark:text-teal-400" : "text-gray-900 dark:text-white group-hover:text-teal-600"
+            }`}>
+              {offer.title}
+            </h3>
+
+            <div className="space-y-2.5">
+              <div className={`flex items-start gap-2.5 text-sm p-2 rounded-lg ${
+                isOwner ? "bg-teal-100/50 dark:bg-teal-900/30 text-teal-700" : "text-gray-600 dark:text-gray-400"
+              }`}>
+                <span>📍 {offer.location}</span>
+              </div>
+              <div className="flex items-start gap-2.5 text-sm text-gray-500 px-2">
+                <span>🕒 {offer.availability}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 💡 Button Logic */}
+          {isOwner ? (
+            <Link to="/dashboard">
+              <button className="w-full py-3.5 rounded-xl font-bold text-base bg-teal-600 text-white shadow-lg shadow-teal-500/30 hover:bg-teal-700 hover:-translate-y-0.5 transition-all">
+                Manage Your Offer
+              </button>
+            </Link>
+          ) : (
+            <Link to={`/offer-details/${offer._id}`}>
+              <button className="w-full py-3.5 rounded-xl font-bold text-base bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:bg-teal-600 hover:text-white dark:hover:bg-teal-500 dark:hover:text-gray-950 transition-all duration-300">
+                Connect
+              </button>
+            </Link>
+          )}
+        </div>
+      );
+    })}
+  </div>
         ) : (
           !loading &&
           !error && (
