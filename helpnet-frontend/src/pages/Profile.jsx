@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import API_URL from "../api"; // 👈 ADD THIS IMPORT
 
 export default function Profile() {
   const [stats, setStats] = useState({ requests: 0, offers: 0 });
@@ -9,16 +10,18 @@ export default function Profile() {
   
   const navigate = useNavigate();
   
-  // Grab the user data we saved during login
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-  // Fetch their activity stats from the database
   useEffect(() => {
     const fetchUserStats = async () => {
       try {
         const token = localStorage.getItem("token");
-        if (!token) return;
+        if (!token) {
+          setLoading(false);
+          return;
+        }
 
+        // Fetching from the fixed /me endpoints
         const [requestsRes, offersRes] = await Promise.all([
           fetch(`${API_URL}/api/requests/me`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -31,7 +34,12 @@ export default function Profile() {
         if (requestsRes.ok && offersRes.ok) {
           const requestsData = await requestsRes.json();
           const offersData = await offersRes.json();
-          setStats({ requests: requestsData.length, offers: offersData.length });
+          
+          // These will now contain the actual posts linked to the user ID
+          setStats({ 
+            requests: Array.isArray(requestsData) ? requestsData.length : 0, 
+            offers: Array.isArray(offersData) ? offersData.length : 0 
+          });
         }
       } catch (err) {
         console.error("Error fetching stats:", err);
@@ -60,8 +68,8 @@ export default function Profile() {
           <div className="h-32 bg-gradient-to-r from-blue-600 to-cyan-500 relative">
             <div className="absolute -bottom-12 left-8">
               <div className="w-24 h-24 rounded-full bg-white dark:bg-gray-800 p-1.5 shadow-lg">
-                <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-3xl font-bold text-gray-700 dark:text-gray-200">
-                  {user.fullName ? user.fullName.charAt(0).toUpperCase() : "U"}
+                <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-3xl font-bold text-gray-700 dark:text-gray-200 uppercase">
+                  {user.fullName ? user.fullName.charAt(0) : "U"}
                 </div>
               </div>
             </div>
@@ -79,7 +87,7 @@ export default function Profile() {
               </div>
               
               <Link to="/dashboard">
-                <button className="px-5 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                <button className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
                   Go to Dashboard
                 </button>
               </Link>
@@ -107,7 +115,8 @@ export default function Profile() {
               </div>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-gray-400 italic">Member since {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'recently'}</p>
               <button 
                 onClick={handleLogout}
                 className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2"

@@ -3,80 +3,68 @@ const router = express.Router();
 const Message = require('../models/Message');
 const auth = require('../middleware/auth');
 
-// ==========================================
-// 1. SEND A MESSAGE
-// Route: POST /api/messages
-// ==========================================
+// 1. GET UNREAD COUNT
 router.get('/unread-count', auth, async (req, res) => {
   try {
-    // .countDocuments is much faster than .find() 
-    // because it doesn't pull the actual message data
     const count = await Message.countDocuments({ 
-      receiver: req.user, 
+      receiver: req.user.id, // Use .id
       isRead: false 
     });
-    
     res.json({ count });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
+
+// 2. SEND A MESSAGE (FIXED)
 router.post('/', auth, async (req, res) => {
   try {
-    const { receiverId, content, relatedPostId, postTitle } = req.body;
+   const { receiverId, content, relatedPostId, postTitle } = req.body;
 
-    // You can't message yourself!
-    if (receiverId === req.user) {
-      return res.status(400).json({ message: "You cannot message yourself." });
-    }
+// 💡 This line safely handles both a string OR the {id: '...'} object
+const cleanReceiverId = typeof receiverId === 'object' ? receiverId.id : receiverId;
 
-    const newMessage = new Message({
-      sender: req.user,
-      receiver: receiverId,
-      content,
-      relatedPostId,
-      postTitle
-    });
+const newMessage = new Message({
+  sender: req.user.id,
+  receiver: cleanReceiverId, // ✅ Now it's a valid string ID
+  content,
+  relatedPostId,
+  postTitle
+});
 
     const savedMessage = await newMessage.save();
     res.json(savedMessage);
   } catch (err) {
-    console.error(err.message);
+    // 💡 This logs the "Cast Error" specifically
+    console.error("Message Send Error:", err.message); 
     res.status(500).send('Server Error');
   }
 });
 
-// ==========================================
-// 2. GET MY INBOX (Received Messages)
-// Route: GET /api/messages/inbox
-// ==========================================
+// 3. GET MY INBOX
 router.get('/inbox', auth, async (req, res) => {
   try {
-    // Find messages where the logged-in user is the receiver
-    // We populate the sender's name so we know who it's from!
-    const messages = await Message.find({ receiver: req.user })
+    // req.user.id is standardized by most auth middlewares
+    const messages = await Message.find({ receiver: req.user.id })
       .populate('sender', 'fullName')
-      .sort({ createdAt: -1 }); // Newest first
-    
+      .sort({ createdAt: -1 });
+      
     res.json(messages);
   } catch (err) {
-    console.error(err.message);
+    console.error("Inbox Error:", err.message);
     res.status(500).send('Server Error');
   }
 });
 
-// ==========================================
-// 3. MARK MESSAGE AS READ
-// Route: PATCH /api/messages/:id/read
-// ==========================================
+// 4. MARK MESSAGE AS READ
 router.patch('/:id/read', auth, async (req, res) => {
   try {
     const message = await Message.findById(req.params.id);
     if (!message) return res.status(404).json({ message: 'Message not found' });
 
-    // Only the receiver can mark it as read
-    if (message.receiver.toString() !== req.user) {
+    // Ensure we compare string to string
+    if (message.receiver.toString() !== req.user.id) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
