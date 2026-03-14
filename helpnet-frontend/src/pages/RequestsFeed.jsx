@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import API_URL from '../api'; // This tells the file where to get the value
 
 export default function RequestsFeed() {
   const [requests, setRequests] = useState([]);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import API_URL from '../api'; // This tells the file where to get the value
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });

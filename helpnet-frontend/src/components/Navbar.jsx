@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import useDarkMode from "../hooks/useDarkMode";
+import API_URL from '../api'; // This tells the file where to get the value
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
