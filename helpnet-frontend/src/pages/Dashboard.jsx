@@ -96,28 +96,33 @@ export default function Dashboard() {
     }
   };
 
-  const handleUpdate = async (e, postId, postType) => {
-    e.preventDefault();
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(editData)
-      });
-      if (res.ok) {
-        const updatedDoc = await res.json();
-        setMyPosts(myPosts.map(p => p._id === postId ? { ...p, ...updatedDoc, postType } : p));
-        setEditingPost(null);
-        toast.success("Post updated! ✨");
-      }
-    } catch (err) {
-      console.error("Update error:", err);
+const handleUpdate = async (e, postId, postType) => {
+  e.preventDefault();
+  const token = localStorage.getItem("token");
+  try {
+    const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}` // Ensure this is Backticks ``
+      },
+      body: JSON.stringify(editData)
+    });
+
+    if (res.ok) {
+      const updatedDoc = await res.json();
+      // This part updates the list so the description changes instantly
+      setMyPosts(myPosts.map(p => p._id === postId ? { ...p, ...updatedDoc, postType } : p));
+      setEditingPost(null);
+      toast.success("Post updated! ✨");
+    } else {
+      toast.error("Server refused the update.");
     }
-  };
+  } catch (err) {
+    console.error("Update error:", err);
+    toast.error("Connection error.");
+  }
+};
 
   const markAsRead = async (msgId) => {
     const token = localStorage.getItem("token");
@@ -194,24 +199,42 @@ export default function Dashboard() {
                         ? "bg-gray-100 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800 opacity-60 shadow-none" 
                         : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm"
                     }`}>
-                      {editingPost === post._id ? (
-                        <form onSubmit={(e) => handleUpdate(e, post._id, post.postType)} className="space-y-4">
-                           <input 
-                            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
-                            value={editData.title}
-                            onChange={(e) => setEditData({...editData, title: e.target.value})}
-                          />
-                          <textarea 
-                            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
-                            rows="3"
-                            value={editData.description}
-                            onChange={(e) => setEditData({...editData, description: e.target.value})}
-                          />
-                          <div className="flex gap-2">
-                            <button type="submit" className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-bold">Save</button>
-                            <button type="button" onClick={() => setEditingPost(null)} className="bg-gray-200 dark:bg-gray-700 px-4 py-1.5 rounded-lg text-sm font-bold">Cancel</button>
-                          </div>
-                        </form>
+                     {editingPost === post._id ? (
+  <form onSubmit={(e) => handleUpdate(e, post._id, post.postType)} className="space-y-4 bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+    <div>
+      <label className="text-[10px] font-bold uppercase text-blue-600 dark:text-blue-400 mb-1 block">Edit Title</label>
+      <input 
+        className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+        value={editData.title}
+        onChange={(e) => setEditData({...editData, title: e.target.value})}
+        placeholder="Enter title..."
+      />
+    </div>
+
+    <div>
+      <label className="text-[10px] font-bold uppercase text-blue-600 dark:text-blue-400 mb-1 block">Edit Description</label>
+      <textarea 
+        className="w-full p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+        rows="3"
+        value={editData.description}
+        onChange={(e) => setEditData({...editData, description: e.target.value})}
+        placeholder="Enter description..."
+      />
+    </div>
+
+    <div className="flex gap-2 pt-2">
+      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-bold transition-colors">
+        Save Changes
+      </button>
+      <button 
+        type="button" 
+        onClick={() => setEditingPost(null)} 
+        className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-6 py-2 rounded-lg text-sm font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+      >
+        Cancel
+      </button>
+    </div>
+  </form>
                       ) : (
                         <div className="flex justify-between items-start">
                           <div className="flex-1">

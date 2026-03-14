@@ -1,25 +1,15 @@
-// models/User.js
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: true,
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  // Add this new field!
-  location: {
-    type: String,
-    required: false, // Optional: Set to true if you want to force users to provide a location
-  }
-}, { timestamps: true }); // Automatically adds createdAt and updatedAt dates
+// 1. Define the Schema variable
+const UserSchema = new mongoose.Schema({
+  fullName: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  location: { type: String, default: "" }, 
+  bio: { type: String, default: "" },
+  createdAt: { type: Date, default: Date.now }
+});
 
-module.exports = mongoose.model('User', userSchema);
+// 2. Export the model (checking if it exists first to prevent the Overwrite error)
+// Ensure "UserSchema" matches the variable name on line 4
+module.exports = mongoose.models.User || mongoose.model('User', UserSchema);

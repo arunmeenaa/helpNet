@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const profileRoutes = require('./routes/profile');
 
 require('dotenv').config();
 
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/profile', profileRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

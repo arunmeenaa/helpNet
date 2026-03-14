@@ -80,28 +80,37 @@ router.post('/', auth, async (req, res) => {
 // ==========================================
 // 5. UPDATE OFFER (Content & Status)
 // ==========================================
+// UPDATE OFFER (Title, Description, and Status)
+// routes/offers.js AND routes/requests.js
+
 router.patch('/:id', auth, async (req, res) => {
   try {
-    let offer = await Offer.findById(req.params.id);
-    if (!offer) return res.status(404).json({ message: 'Offer not found' });
+    const { title, description, location, status } = req.body;
+    
+    // 1. Find the document
+    let item = await Request.findById(req.params.id); // or Offer.findById
+    if (!item) return res.status(404).json({ message: 'Post not found' });
 
-    if (offer.author.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'User not authorized' });
+    // 2. Security: Ensure the user owns this post
+    if (item.author.toString() !== req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const { title, description, location, status, category, availability } = req.body;
+    // 3. THE FIX: Explicitly update each field if it exists in req.body
+    if (title !== undefined) item.title = title;
+    if (description !== undefined) item.description = description; // THIS IS THE KEY LINE
+    if (location !== undefined) item.location = location;
     
-    if (title) offer.title = title;
-    if (description) offer.description = description;
-    if (location) offer.location = location;
-    if (category) offer.category = category;
-    if (availability) offer.availability = availability;
-    if (status) offer.status = status.toLowerCase().trim(); 
+    if (status) {
+      item.status = status.toLowerCase().trim();
+    }
 
-    const updatedOffer = await offer.save();
-    res.json(updatedOffer);
+    // 4. Save and return the result
+    const updatedItem = await item.save();
+    res.json(updatedItem);
+
   } catch (err) {
-    console.error("Offer Update Error:", err.message);
+    console.error("Update error:", err.message);
     res.status(500).send('Server Error');
   }
 });

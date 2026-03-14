@@ -97,32 +97,32 @@ router.get('/:id', async (req, res) => {
 // ==========================================
 // 5. UPDATE REQUEST (Handles Content & Status)
 // ==========================================
+// routes/offers.js AND routes/requests.js
+
+// routes/requests.js
 router.patch('/:id', auth, async (req, res) => {
   try {
-    // 1. Find the post
+    const { title, description, location, status, priority } = req.body;
+    
+    // Use Request model here!
     let request = await Request.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
-    // 2. Check Ownership (req.user.id comes from auth middleware)
     if (request.author.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'User not authorized' });
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
-    // 3. Update fields if they exist in req.body
-    const { title, description, location, priority, status } = req.body;
-    
+    // Update fields
     if (title) request.title = title;
     if (description) request.description = description;
     if (location) request.location = location;
     if (priority) request.priority = priority;
-    if (status) request.status = status.toLowerCase().trim(); // Ensure it saves as 'resolved'
+    if (status) request.status = status.toLowerCase();
 
-    // 4. Save and return the UPDATED document
     const updatedRequest = await request.save();
-    res.json(updatedRequest);
-
+    res.json(updatedRequest); // Send back the updated object
   } catch (err) {
-    console.error("Update Error:", err.message);
+    console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
