@@ -15,7 +15,7 @@ const currentUser = JSON.parse(localStorage.getItem("user") || "null");
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        const response = await fetch("http://localhost:5000/api/requests");
+        const response = await fetch("API_URL/api/requests");
         if (!response.ok) throw new Error("Failed to fetch requests");
         
         const data = await response.json();

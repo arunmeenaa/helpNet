@@ -33,7 +33,7 @@ const fetchUnreadCount = async () => {
   
   try {
     const token = localStorage.getItem("token");
-    const response = await fetch("http://localhost:5000/api/messages/unread-count", {
+    const response = await fetch("API_URL/api/messages/unread-count", {
       headers: { "Authorization": `Bearer ${token}` }
     });
     

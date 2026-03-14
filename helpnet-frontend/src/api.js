@@ -1,7 +1,6 @@
 // src/api.js
-
-const API_URL = process.env.NODE_ENV === 'production'
-  ? "https://your-backend-name.onrender.com" // Replace with your Render URL later
+const API_URL = import.meta.env.PROD 
+  ? "https://helpnet-gw14.onrender.com" 
   : "http://localhost:5000";
 
 export default API_URL;

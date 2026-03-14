@@ -24,7 +24,7 @@ export default function OfferHelp() {
       const token = localStorage.getItem("token");
       if (!token) throw new Error("You must be logged in to offer help.");
 
-      const response = await fetch("http://localhost:5000/api/offers", {
+      const response = await fetch("API_URL/api/offers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
