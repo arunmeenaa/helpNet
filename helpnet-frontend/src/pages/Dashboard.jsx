@@ -15,19 +15,20 @@ export default function Dashboard() {
     const fetchDashboardData = async () => {
       const token = localStorage.getItem("token");
       try {
-        // Updated to use API_URL
-        const postRes = await fetch(`${API_URL}/api/requests/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const postData = await postRes.json();
-        setMyPosts(postData);
+        // Fetch both Requests and Offers simultaneously
+        const [reqRes, offerRes, msgRes] = await Promise.all([
+          fetch(`${API_URL}/api/requests/me`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/offers/me`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/messages/inbox`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
 
-        // Updated to use API_URL
-        const msgRes = await fetch(`${API_URL}/api/messages/inbox`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const msgData = await msgRes.json();
-        setMessages(msgData);
+        const requests = await reqRes.json();
+        const offers = await offerRes.json();
+        const messages = await msgRes.json();
+
+        // Combine them into one list
+        setMyPosts([...requests, ...offers]);
+        setMessages(messages);
       } catch (err) {
         console.error("Error fetching dashboard data", err);
       } finally {
@@ -82,7 +83,8 @@ export default function Dashboard() {
       if (response.ok) {
         setReplyText("");
         setReplyingTo(null);
-        alert("Reply sent!");
+        toast.success("Reply sent successfully! ✉️"); // Much cleaner than an alert box
+      
       }
     } catch (err) {
       console.error("Failed to send reply", err);
