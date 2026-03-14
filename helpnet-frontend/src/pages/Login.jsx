@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; // This tells the file where to get the value
+import toast from 'react-hot-toast';
 
 export default function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -14,6 +15,9 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    // 1. Create a "Loading" toast that stays until the fetch finishes
+    const loginToast = toast.loading('Authenticating...');
 
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
@@ -28,15 +32,26 @@ export default function Login() {
         throw new Error(data.message || "Login failed");
       }
 
-      // Save the JWT token and user details to local storage
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Redirect to the dashboard
+      // 2. Success Toast
+      toast.success(`Welcome back, ${data.user.fullName || 'User'}!`, {
+        id: loginToast, // This replaces the loading toast with a success checkmark
+      });
+      setTimeout(() => {
+  navigate("/dashboard");
+}, 2000); // 1 second delay
+
       navigate("/dashboard");
 
     } catch (err) {
       setError(err.message);
+      
+      // 3. Error Toast
+      toast.error(err.message, {
+        id: loginToast, // This replaces the loading toast with an error X
+      });
     } finally {
       setLoading(false);
     }

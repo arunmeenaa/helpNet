@@ -2,7 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import Loading from '../components/Loading';
 import API_URL from '../api'; // This tells the file where to get the value
+import SkeletonCard from '../components/SkeletonCard'; // Adjust path if needed
 
 export default function RequestsFeed() {
   const [requests, setRequests] = useState([]);
@@ -94,8 +96,26 @@ const currentUser = JSON.parse(localStorage.getItem("user") || "null");
         </div>
 
         {/* Loading / Error States */}
-        {loading && <div className="text-center py-20 text-blue-600 dark:text-cyan-400 font-bold">Loading community requests...</div>}
-        {error && <div className="text-center py-20 text-red-500">{error}</div>}
+ {/* Replace the old loading spinner with this skeleton grid */}
+{loading && (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {[...Array(6)].map((_, index) => (
+      <SkeletonCard key={index} />
+    ))}
+  </div>
+)}
+
+{error && (
+  <div className="text-center py-20 px-6 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-3xl">
+    <p className="text-red-500 font-medium">⚠️ {error}</p>
+    <button 
+      onClick={() => window.location.reload()} 
+      className="mt-4 text-sm font-bold text-teal-600 underline"
+    >
+      Try Again
+    </button>
+  </div>
+)}
 
         {/* Requests Grid */}
         {!loading && !error && filteredRequests.length > 0 ? (

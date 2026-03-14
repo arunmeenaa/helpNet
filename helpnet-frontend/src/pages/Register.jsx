@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; // This tells the file where to get the value
+import toast from 'react-hot-toast';
 
 export default function Register() {
   // 1. Added 'location' to the initial state
@@ -22,6 +23,9 @@ export default function Register() {
     setError("");
     setLoading(true);
 
+    // 1. Initialize the loading toast
+    const registerToast = toast.loading('Creating your account...');
+
     try {
       const response = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
@@ -35,15 +39,25 @@ export default function Register() {
         throw new Error(data.message || "Registration failed");
       }
 
-      // Save the JWT token and user info
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Success! Redirect to the dashboard
+      // 2. Success Toast - Personalize it!
+      toast.success(`Welcome to the community, ${data.user.fullName}! 🎉`, {
+        id: registerToast,
+      });
+setTimeout(() => {
+  navigate("/dashboard");
+}, 1000); // 1 second delay
       navigate("/dashboard");
 
     } catch (err) {
       setError(err.message);
+      
+      // 3. Error Toast
+      toast.error(err.message, {
+        id: registerToast,
+      });
     } finally {
       setLoading(false);
     }

@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 
+import { Toaster } from 'react-hot-toast';
 import Home from "./pages/Home";
-import requestsList from "./pages/RequestsFeed";
 import PostRequest from "./pages/PostRequest";
 import RequestDetails from "./pages/RequestDetails";
 import Login from "./pages/Login";
@@ -18,7 +18,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
-    <>
+    <div>
+    <Toaster position="top-center" reverseOrder={false} />
       <ScrollToTop />
 
       <Routes>
@@ -88,7 +89,7 @@ function App() {
           }
         />
       </Routes>
-    </>
+    </div>
   );
 }
 

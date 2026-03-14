@@ -3,12 +3,15 @@ import { Link } from "react-router-dom"; // Don't forget to import Link!
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; // This tells the file where to get the value
+import Loading from '../components/Loading';
+import SkeletonCard from '../components/SkeletonCard'; // Adjust path if needed
 
 export default function AvailableHelp() {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  
 
   // 1. Grab the currently logged-in user
   const currentUser = JSON.parse(localStorage.getItem("user") || "null");
@@ -83,12 +86,25 @@ export default function AvailableHelp() {
           </div>
         </div>
 
-        {loading && (
-          <div className="text-center py-20 text-teal-600 dark:text-teal-400 font-bold">
-            Loading community offers...
-          </div>
-        )}
-        {error && <div className="text-center py-20 text-red-500">{error}</div>}
+  {/* Replace the old loading spinner with this skeleton grid */}
+{loading && (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {[...Array(6)].map((_, index) => (
+      <SkeletonCard key={index} />
+    ))}
+  </div>
+)}
+        {error && (
+  <div className="text-center py-20 px-6 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-3xl">
+    <p className="text-red-500 font-medium">⚠️ {error}</p>
+    <button 
+      onClick={() => window.location.reload()} 
+      className="mt-4 text-sm font-bold text-teal-600 underline"
+    >
+      Try Again
+    </button>
+  </div>
+)}
 
         {!loading && !error && filteredOffers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
