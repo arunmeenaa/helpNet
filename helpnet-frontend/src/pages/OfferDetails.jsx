@@ -20,7 +20,7 @@ export default function OfferDetails() {
   useEffect(() => {
     const fetchOfferDetails = async () => {
       try {
-        const response = await fetch(`API_URL/api/offers/${id}`);
+        const response = await fetch(`${API_URL}/api/offers/${id}`);
         if (!response.ok) throw new Error("Offer not found or server error");
         
         const data = await response.json();
@@ -45,7 +45,7 @@ export default function OfferDetails() {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("API_URL/api/messages", {
+      const response = await fetch(`${API_URL}/api/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

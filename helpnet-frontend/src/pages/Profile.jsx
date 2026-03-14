@@ -20,10 +20,10 @@ export default function Profile() {
         if (!token) return;
 
         const [requestsRes, offersRes] = await Promise.all([
-          fetch("API_URL/api/requests/me", {
+          fetch(`${API_URL}/api/requests/me`, {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          fetch("API_URL/api/offers/me", {
+          fetch(`${API_URL}/api/offers/me`, {
             headers: { Authorization: `Bearer ${token}` }
           })
         ]);

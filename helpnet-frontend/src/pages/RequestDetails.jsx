@@ -12,7 +12,7 @@ const currentUser = JSON.parse(localStorage.getItem("user") || "null");
   useEffect(() => {
     const fetchRequestDetails = async () => {
       try {
-        const response = await fetch(`API_URL/api/requests/${id}`);
+        const response = await fetch(`${API_URL}/api/requests/${id}`);
         if (!response.ok) {
           throw new Error("Request not found or server error");
         }

@@ -27,7 +27,7 @@ export default function PostRequest() {
       }
 
       // 2. Send the data to the backend
-      const response = await fetch("API_URL/api/requests", {
+      const response = await fetch(`${API_URL}/api/requests`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

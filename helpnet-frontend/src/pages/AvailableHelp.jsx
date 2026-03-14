@@ -16,7 +16,7 @@ export default function AvailableHelp() {
   useEffect(() => {
     const fetchOffers = async () => {
       try {
-        const response = await fetch("API_URL/api/offers");
+        const response = await fetch(`${API_URL}/api/offers`);
         if (!response.ok) throw new Error("Failed to fetch offers");
 
         const data = await response.json();
