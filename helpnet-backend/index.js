@@ -17,8 +17,18 @@ const allowedOrigins = [
 ].filter(Boolean); // Removes undefined if FRONTEND_URL isn't set yet
 
 app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200 // Add this for legacy browser support
 }));
 
 // Import Routes
