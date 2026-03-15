@@ -9,8 +9,6 @@ export default function Profile() {
   const [stats, setStats] = useState({ requests: 0, offers: 0 });
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  
-  // 1. We'll use userData to hold everything about the user
   const [userData, setUserData] = useState(JSON.parse(localStorage.getItem("user") || "{}"));
   const [location, setLocation] = useState("");
 
@@ -39,7 +37,7 @@ export default function Profile() {
           });
 
           setUserData(uData);
-          setLocation(uData.location || "Location not set");
+          setLocation(uData.location || ""); 
         }
       } catch (err) {
         console.error("Error:", err);
@@ -64,7 +62,6 @@ export default function Profile() {
       });
 
       if (res.ok) {
-        // Update both the local state and localStorage so it stays fresh
         const updatedUser = { ...userData, location };
         setUserData(updatedUser);
         localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -86,95 +83,100 @@ export default function Profile() {
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
       <Navbar />
 
-      <div className="flex-grow w-full max-w-3xl mx-auto px-6 py-12">
-        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl shadow-blue-900/5 dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden">
+      <main className="flex-grow w-full max-w-2xl mx-auto px-6 py-12">
+        <div className="bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-xl shadow-blue-900/5 dark:shadow-none border border-gray-100 dark:border-gray-800 overflow-hidden">
           
-          <div className="h-32 bg-gradient-to-r from-blue-600 to-cyan-500 relative">
-            <div className="absolute -bottom-12 left-8">
-              <div className="w-24 h-24 rounded-full bg-white dark:bg-gray-800 p-1.5 shadow-lg">
-                <div className="w-full h-full rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center text-3xl font-bold text-gray-700 dark:text-gray-200 uppercase">
+          {/* Header Banner */}
+          <div className="h-40 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 relative">
+            <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 sm:left-12 sm:translate-x-0">
+              <div className="w-28 h-28 rounded-3xl bg-white dark:bg-gray-900 p-1.5 shadow-2xl rotate-3">
+                <div className="w-full h-full rounded-2xl bg-gradient-to-br from-gray-50 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center text-4xl font-black text-blue-600 dark:text-blue-400 uppercase -rotate-3">
                   {userData.fullName ? userData.fullName.charAt(0) : "U"}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="pt-16 pb-8 px-8">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-              <div>
-                <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white">
+          <div className="pt-20 pb-10 px-8 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-10">
+              <div className="flex-grow">
+                <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
                   {userData.fullName || "Community Member"}
                 </h1>
                 
-                <div className="mt-2 flex items-center gap-2">
+                {/* ✉️ Email Section: Visible but neat */}
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-center sm:justify-start gap-1.5">
+                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {userData.email || "No email provided"}
+                </p>
+
+                {/* 📍 Location Pill Section */}
+                <div className="mt-4 flex items-center justify-center sm:justify-start gap-2">
                   {isEditing ? (
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl border border-blue-200 dark:border-blue-900">
                       <input 
-                        className="text-sm p-1.5 border border-gray-200 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
+                        className="bg-transparent text-sm px-3 py-1.5 outline-none dark:text-white w-44"
+                        placeholder="Enter neighborhood..."
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
                         autoFocus
                       />
-                      <button onClick={handleUpdateLocation} className="text-xs bg-green-600 text-white px-3 py-1 rounded-lg font-bold">Save</button>
-                      <button onClick={() => setIsEditing(false)} className="text-xs bg-gray-200 dark:bg-gray-700 px-3 py-1 rounded-lg font-bold">Cancel</button>
+                      <button onClick={handleUpdateLocation} className="bg-blue-600 text-white p-1.5 rounded-lg hover:bg-blue-700 transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+                      </button>
                     </div>
                   ) : (
-                    <>
-                      <p className="text-gray-500 dark:text-gray-400 font-medium flex items-center gap-1">
-                        <span className="text-blue-500 text-lg">📍</span> {location}
-                      </p>
-                      <button 
-                        onClick={() => setIsEditing(true)} 
-                        className="text-[10px] text-blue-600 font-bold uppercase hover:underline"
-                      >
-                        Edit
-                      </button>
-                    </>
+                    <div 
+                      onClick={() => setIsEditing(true)}
+                      className="group flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 rounded-full cursor-pointer hover:shadow-md transition-all"
+                    >
+                      <span className="text-blue-600 dark:text-blue-400 text-sm">📍</span>
+                      <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                        {location || "Add Location"}
+                      </span>
+                      <svg className="w-3 h-3 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </div>
                   )}
                 </div>
               </div>
               
-              <Link to="/dashboard">
-                <button className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20">
-                  Go to Dashboard
+              <Link to="/dashboard" className="w-full sm:w-auto">
+                <button className="w-full px-8 py-3 bg-gray-900 dark:bg-blue-600 text-white font-bold rounded-2xl hover:scale-105 transition-transform shadow-lg">
+                  Dashboard
                 </button>
               </Link>
             </div>
 
-            <hr className="border-gray-100 dark:border-gray-800 mb-8" />
-
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">Your Community Impact</h3>
-            
-            {loading ? (
-              <div className="animate-pulse flex gap-4">
-                <div className="flex-1 h-24 bg-gray-100 dark:bg-gray-800 rounded-2xl"></div>
-                <div className="flex-1 h-24 bg-gray-100 dark:bg-gray-800 rounded-2xl"></div>
+            <div className="grid grid-cols-2 gap-4 mb-10">
+              <div className="p-6 rounded-[2rem] bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                <div className="text-3xl font-black text-blue-600 dark:text-blue-400 mb-1">{stats.requests}</div>
+                <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Requests</div>
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4 mb-10">
-                <div className="p-6 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 text-center">
-                  <div className="text-3xl font-extrabold text-blue-600 dark:text-cyan-400 mb-1">{stats.requests}</div>
-                  <div className="text-[10px] font-bold text-blue-800/70 dark:text-cyan-500/70 uppercase tracking-widest">Requests</div>
-                </div>
-                <div className="p-6 rounded-2xl bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-900/30 text-center">
-                  <div className="text-3xl font-extrabold text-teal-600 dark:text-teal-400 mb-1">{stats.offers}</div>
-                  <div className="text-[10px] font-bold text-teal-800/70 dark:text-teal-500/70 uppercase tracking-widest">Offers</div>
-                </div>
+              <div className="p-6 rounded-[2rem] bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                <div className="text-3xl font-black text-teal-600 dark:text-teal-400 mb-1">{stats.offers}</div>
+                <div className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Offers</div>
               </div>
-            )}
+            </div>
 
-            <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-xs text-gray-400 italic">Member since {userData.createdAt ? new Date(userData.createdAt).toLocaleDateString() : 'recently'}</p>
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-8 border-t border-gray-100 dark:border-gray-800">
+              <div className="text-center sm:text-left">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Joined</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                  {userData.createdAt ? new Date(userData.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'March 2026'}
+                </p>
+              </div>
               <button 
                 onClick={handleLogout}
-                className="px-6 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto px-8 py-3 text-red-600 font-black text-sm uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all"
               >
                 Sign Out
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       <Footer />
     </div>

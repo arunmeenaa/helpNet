@@ -110,18 +110,20 @@ export default function AvailableHelp() {
 {!loading && !error && filteredOffers.length > 0 ? (
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {filteredOffers.map((offer) => {
-      // 💡 Check if the current user is the owner
-      const isOwner = currentUser?.id === offer.author?._id;
+  // 💡 THE FIX: Standardize both IDs to strings for a perfect match
+  const currentUserId = currentUser?.id || currentUser?._id;
+  const authorId = offer.author?._id || offer.author;
+  const isOwner = currentUserId?.toString() === authorId?.toString();
 
-      return (
-        <div 
-          key={offer._id} 
-          className={`group flex flex-col h-full rounded-3xl p-6 sm:p-8 transition-all duration-300 relative border ${
-            isOwner 
-              ? "bg-teal-50/50 dark:bg-teal-900/10 border-teal-400 dark:border-teal-500 shadow-[0_0_25px_rgba(20,184,166,0.2)] ring-2 ring-teal-500/20" 
-              : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-xl"
-          }`}
-        >
+  return (
+    <div 
+      key={offer._id} 
+      className={`group flex flex-col h-full rounded-3xl p-6 sm:p-8 transition-all duration-300 relative border ${
+        isOwner 
+          ? "bg-teal-50/50 dark:bg-teal-900/10 border-teal-400 dark:border-teal-500 shadow-[0_0_25px_rgba(20,184,166,0.2)] ring-2 ring-teal-500/20" 
+          : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-xl"
+      }`}
+    >
           {/* 💡 "Your Offer" Badge */}
           {isOwner && (
             <div className="absolute -top-3 left-6 bg-teal-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg uppercase tracking-widest z-20">

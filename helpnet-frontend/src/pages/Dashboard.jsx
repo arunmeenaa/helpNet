@@ -43,37 +43,40 @@ export default function Dashboard() {
     fetchDashboardData();
   }, []);
 
-  const handleUpdateStatus = async (postId, postType, newStatus) => {
+ const handleUpdateStatus = async (postId, postType, newStatus) => {
   setUpdatingStatusId(postId);
   const token = localStorage.getItem("token");
+  
   try {
     const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Authorization": `Bearer ${token}`
       },
-      body: JSON.stringify({ status: newStatus.toLowerCase() })
+      body: JSON.stringify({ status: newStatus }) // 'newStatus' is already lowercased in the caller
     });
 
-    if (res.ok) {
-      const result = await res.json();
-      
-      // 💡 LOGIC FIX: Some backends return { message, post } 
-      // We need to find the actual post object
-      const updatedPost = result.post || result; 
-
-      setMyPosts(prevPosts => 
-        prevPosts.map(p => 
-          p._id === postId 
-            ? { ...p, status: newStatus.toLowerCase(), postType } // Manually force the status update
-            : p
-        )
-      );
-      toast.success(`Post is now ${newStatus}!`);
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || "Server refused the update");
     }
+
+    const result = await res.json();
+    
+    // 💡 IMPORTANT: Update the list using the ID to ensure the UI refreshes
+    setMyPosts(prevPosts => 
+      prevPosts.map(p => 
+        p._id === postId 
+          ? { ...p, ...result, status: newStatus, postType } // Merge the update
+          : p
+      )
+    );
+
+    toast.success(`Post marked as ${newStatus}!`);
   } catch (err) {
-    toast.error("Failed to update status.");
+    console.error("Status Update Error:", err);
+    toast.error(err.message || "Failed to update status.");
   } finally {
     setUpdatingStatusId(null);
   }

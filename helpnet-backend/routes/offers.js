@@ -8,7 +8,6 @@ const auth = require('../middleware/auth');
 // ==========================================
 router.get('/', async (req, res) => {
   try {
-    // 💡 THE FIX: Filter out resolved offers
     const offers = await Offer.find({ 
       status: { $ne: 'resolved' } 
     })
@@ -18,7 +17,7 @@ router.get('/', async (req, res) => {
     res.json(offers);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
@@ -31,12 +30,12 @@ router.get('/me', auth, async (req, res) => {
     res.json(myOffers);
   } catch (err) {
     console.error("Dashboard Offers Error:", err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
-// 3. GET SINGLE OFFER (For OfferDetails.jsx)
+// 3. GET SINGLE OFFER
 // ==========================================
 router.get('/:id', async (req, res) => {
   try {
@@ -47,9 +46,9 @@ router.get('/:id', async (req, res) => {
     res.json(item);
   } catch (err) {
     if (err.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Invalid ID format' });
+      return res.status(400).json({ message: 'Invalid ID format' });
     }
-    res.status(500).send('Server Error');
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
@@ -70,48 +69,52 @@ router.post('/', auth, async (req, res) => {
     });
 
     const savedOffer = await newOffer.save();
-    res.json(savedOffer);
+    
+    // 💡 THE FIX: Populate here so the frontend highlight works immediately
+    const populatedOffer = await savedOffer.populate('author', 'fullName');
+    
+    res.status(201).json(populatedOffer);
   } catch (err) {
     console.error("Create Offer Error:", err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
 // 5. UPDATE OFFER (Content & Status)
 // ==========================================
-// UPDATE OFFER (Title, Description, and Status)
-// routes/offers.js AND routes/requests.js
+// backend/routes/offers.js
 
 router.patch('/:id', auth, async (req, res) => {
   try {
-    const { title, description, location, status } = req.body;
+    const { title, description, location, status, category, availability } = req.body;
     
-    // 1. Find the document
-    let item = await Request.findById(req.params.id); // or Offer.findById
-    if (!item) return res.status(404).json({ message: 'Post not found' });
+    // 1. MUST use Offer, not Request
+    let item = await Offer.findById(req.params.id); 
+    if (!item) return res.status(404).json({ message: 'Offer not found' });
 
-    // 2. Security: Ensure the user owns this post
+    // 2. Match the structure from your auth.js (req.user.id)
     if (item.author.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: 'Not authorized' });
     }
 
-    // 3. THE FIX: Explicitly update each field if it exists in req.body
     if (title !== undefined) item.title = title;
-    if (description !== undefined) item.description = description; // THIS IS THE KEY LINE
+    if (description !== undefined) item.description = description;
     if (location !== undefined) item.location = location;
+    if (category !== undefined) item.category = category;
+    if (availability !== undefined) item.availability = availability;
     
     if (status) {
       item.status = status.toLowerCase().trim();
     }
 
-    // 4. Save and return the result
     const updatedItem = await item.save();
-    res.json(updatedItem);
+    res.json(updatedItem); // This ensures the frontend gets valid JSON
 
   } catch (err) {
-    console.error("Update error:", err.message);
-    res.status(500).send('Server Error');
+    console.error("PATCH Error:", err.message);
+    // 💡 IMPORTANT: Send JSON even on error to stop the frontend SyntaxError
+    res.status(500).json({ message: 'Server Error', error: err.message });
   }
 });
 
@@ -130,7 +133,7 @@ router.delete('/:id', auth, async (req, res) => {
     await offer.deleteOne();
     res.json({ message: 'Offer removed successfully' });
   } catch (err) {
-    res.status(500).send('Server Error');
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
