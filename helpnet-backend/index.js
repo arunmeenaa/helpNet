@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const passport = require('passport'); // 1. Import Passport
 const profileRoutes = require('./routes/profile');
 
 require('dotenv').config();
@@ -9,18 +10,19 @@ const app = express();
 
 app.use(express.json());
 
-// 1. IMPROVED CORS: Support both local Vite (5173) and Production (Vercel)
+// 2. Initialize Passport Middleware
+app.use(passport.initialize()); 
+
+// 3. IMPROVED CORS: Support both local Vite (5173) and Production (Vercel)
 const allowedOrigins = [
-  "http://localhost:5173",          // Local Vite
-  "http://localhost:3000",          // Local Create React App
-  process.env.FRONTEND_URL          // Production Vercel URL
-].filter(Boolean); // Removes undefined if FRONTEND_URL isn't set yet
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://help-net-chi.vercel.app" // You can also hardcode this if FRONTEND_URL is acting up
+].filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -28,7 +30,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  optionsSuccessStatus: 200 // Add this for legacy browser support
+  optionsSuccessStatus: 200
 }));
 
 // Import Routes
@@ -38,7 +40,6 @@ const offerRoutes = require('./routes/offers');
 const messageRoutes = require('./routes/messages');
 
 // Connect to MongoDB
-// No need to hardcode - it will use Atlas in production and Local in .env
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("✅ Successfully connected to MongoDB!"))
   .catch((err) => console.log("❌ MongoDB connection error:", err));

@@ -151,6 +151,7 @@ const handleUpdate = async (e, postId, postType) => {
 
         {/* Tab Navigation */}
         <div className="flex gap-4 border-b border-gray-200 dark:border-gray-800 mb-8">
+          
           <button onClick={() => setActiveTab("requests")} className={`pb-4 px-2 font-bold text-sm transition-all ${activeTab === "requests" ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-400 hover:text-gray-600"}`}>
             My Requests ({myPosts.filter(p => p.postType === 'requests').length})
           </button>
@@ -292,7 +293,27 @@ const handleUpdate = async (e, postId, postType) => {
                       )}
                     </div>
                   );
-                }) : <p className="text-center py-10 text-gray-500">You haven't posted any {activeTab} yet.</p>;
+                }) : <div className="text-center py-10 text-gray-500 space-y-4">
+  <p>You haven't posted any {activeTab} yet.</p>
+
+  {activeTab === "requests" && (
+    <button
+      onClick={() => navigate("/create-request")}
+      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all"
+    >
+      + Post Request
+    </button>
+  )}
+
+  {activeTab === "offers" && (
+    <button
+      onClick={() => navigate("/create-offer")}
+      className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all"
+    >
+      + Post Offer
+    </button>
+  )}
+</div>
               })()
             )}
           </div>

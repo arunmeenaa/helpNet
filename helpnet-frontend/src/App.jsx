@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 
 import { Toaster } from "react-hot-toast";
+import LoginSuccess from "./pages/LoginSuccess";
 import Home from "./pages/Home";
 import PostRequest from "./pages/PostRequest";
 import RequestDetails from "./pages/RequestDetails";
@@ -15,7 +16,6 @@ import RequestsFeed from "./pages/RequestsFeed";
 import OfferHelp from "./pages/OfferHelp";
 import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
-
 
 function App() {
   return (
@@ -55,7 +55,14 @@ function App() {
             </ProtectedRoute>
           }
         />
-
+        <Route
+          path="/login-success"
+          element={
+            
+              <LoginSuccess />
+           
+          }
+        />
         <Route
           path="/request-details/:id"
           element={

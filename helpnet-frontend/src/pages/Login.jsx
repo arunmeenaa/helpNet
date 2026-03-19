@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import API_URL from '../api'; // This tells the file where to get the value
+import API_URL from '../api'; 
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -16,7 +16,6 @@ export default function Login() {
     setError("");
     setLoading(true);
 
-    // 1. Create a "Loading" toast that stays until the fetch finishes
     const loginToast = toast.loading('Authenticating...');
 
     try {
@@ -35,27 +34,26 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // 2. Success Toast
-      toast.success(`Welcome back, ${data.user.fullName || 'User'}!`, {
-        id: loginToast, // This replaces the loading toast with a success checkmark
-      });
-      setTimeout(() => {
-  navigate("/dashboard");
-}, 2000); // 1 second delay
-
-      navigate("/dashboard");
+      toast.success(`Welcome back, ${data.user.fullName || 'User'}! 🎉`, { id: loginToast });
+      
+      // Delay redirect slightly so user can see the success toast
+      setTimeout(() => navigate("/dashboard"), 1000);
 
     } catch (err) {
       setError(err.message);
-      
-      // 3. Error Toast
-      toast.error(err.message, {
-        id: loginToast, // This replaces the loading toast with an error X
-      });
+      toast.error(err.message, { id: loginToast });
     } finally {
       setLoading(false);
     }
   };
+
+  // Google Login Handler
+  const handleGoogleLogin = () => {
+    // Redirects directly to the backend route we created
+    window.location.href = `${API_URL}/api/auth/google`;
+  };
+
+  const inputStyle = "w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none text-gray-900 dark:text-white transition-all";
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 relative overflow-hidden transition-colors duration-300">
@@ -73,7 +71,21 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Error Message */}
+          {/* Google Login Button */}
+          <button 
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 py-3 px-4 mb-6 border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-[0.98]"
+          >
+            <img src="https://www.svgrepo.com/show/355037/google.svg" className="w-5 h-5" alt="Google Logo" />
+            Continue with Google
+          </button>
+
+          <div className="relative flex items-center gap-4 mb-6">
+            <div className="flex-grow border-t border-gray-200 dark:border-gray-800"></div>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Or</span>
+            <div className="flex-grow border-t border-gray-200 dark:border-gray-800"></div>
+          </div>
+
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400 text-center">
               {error}
@@ -81,39 +93,34 @@ export default function Login() {
           )}
 
           <form className="space-y-5" onSubmit={handleSubmit}>
-            
-            {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">Email Address</label>
+              <label className="block text-sm font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
               <input
                 type="email"
                 placeholder="hello@example.com"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none text-gray-900 dark:text-white"
+                className={inputStyle}
                 required
               />
             </div>
-            
 
-            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 ml-1">Password</label>
+              <label className="block text-sm font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Password</label>
               <input
                 type="password"
                 placeholder="••••••••"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none text-gray-900 dark:text-white"
+                className={inputStyle}
                 required
               />
             </div>
 
-            {/* Dynamic Loading Button */}
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full py-3.5 mt-4 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-lg shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:hover:translate-y-0"
+              className="w-full py-3.5 mt-4 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-lg shadow-lg hover:-translate-y-0.5 active:scale-[0.98] transition-all disabled:opacity-70"
             >
               {loading ? "Signing In..." : "Sign In"}
             </button>
