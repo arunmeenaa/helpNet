@@ -3,8 +3,10 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from "../api"; 
 import { toast } from "react-hot-toast"; 
+import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("requests");
   const [myPosts, setMyPosts] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -298,7 +300,7 @@ const handleUpdate = async (e, postId, postType) => {
 
   {activeTab === "requests" && (
     <button
-      onClick={() => navigate("/create-request")}
+      onClick={() => navigate("/post")}
       className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all"
     >
       + Post Request
@@ -307,7 +309,7 @@ const handleUpdate = async (e, postId, postType) => {
 
   {activeTab === "offers" && (
     <button
-      onClick={() => navigate("/create-offer")}
+      onClick={() => navigate("/OfferHelp")}
       className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition-all"
     >
       + Post Offer

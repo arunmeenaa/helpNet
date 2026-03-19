@@ -52,6 +52,11 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/profile', profileRoutes);
 
 const PORT = process.env.PORT || 5000;
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong on the server!' });
+});
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
