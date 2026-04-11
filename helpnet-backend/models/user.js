@@ -4,32 +4,44 @@ const UserSchema = new mongoose.Schema({
   fullName: {
     type: String,
     required: true,
+    trim: true
   },
+
+  apartmentId: {
+    type: String,
+    default: null,
+    trim: true,
+    lowercase: true
+  },
+
   email: {
     type: String,
     required: true,
     unique: true,
+    lowercase: true,
+    trim: true
   },
-  // password is NOT required so Google Auth users can be saved
+
   password: {
     type: String,
   },
+
   location: {
     type: String,
   },
-  // We'll keep googleId to distinguish between email and social logins
+
   googleId: {
     type: String,
   },
-  // Default to true now since we removed the OTP step
+
   isVerified: {
     type: Boolean,
     default: true,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+  }
+
+}, { timestamps: true });
+
+// ✅ Index for fast filtering
+UserSchema.index({ apartmentId: 1 });
 
 module.exports = mongoose.models.User || mongoose.model("User", UserSchema);

@@ -38,7 +38,7 @@ export default function OfferHelp() {
         throw new Error("Failed to post offer. Please try again.");
       }
 
-      navigate("/dashboard");
+      navigate("/dashboard?tab=offers");
 
     } catch (err) {
       setError(err.message);

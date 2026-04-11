@@ -2,34 +2,42 @@ const express = require('express');
 const router = express.Router();
 const Offer = require('../models/Offer');
 const auth = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 // ==========================================
-// 1. GET ALL OFFERS (Public Feed)
+// 1. GET ALL OFFERS (Apartment Feed ONLY)
 // ==========================================
-router.get('/', async (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
+    if (!req.user.apartmentId) {
+      return res.status(400).json({ message: "Set apartment first" });
+    }
+
     const offers = await Offer.find({ 
+      apartmentId: req.user.apartmentId,
       status: { $ne: 'resolved' } 
     })
     .populate('author', 'fullName')
     .sort({ createdAt: -1 });
 
     res.json(offers);
+
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
-// 2. GET MY OFFERS (Dashboard)
+// 2. GET MY OFFERS
 // ==========================================
 router.get('/me', auth, async (req, res) => {
   try {
-    const myOffers = await Offer.find({ author: req.user.id }).sort({ createdAt: -1 });
+    const myOffers = await Offer.find({ author: req.user.id })
+      .sort({ createdAt: -1 });
+
     res.json(myOffers);
+
   } catch (err) {
-    console.error("Dashboard Offers Error:", err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });
@@ -37,84 +45,94 @@ router.get('/me', auth, async (req, res) => {
 // ==========================================
 // 3. GET SINGLE OFFER
 // ==========================================
-router.get('/:id', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
-    const item = await Offer.findById(req.params.id).populate('author', 'fullName');
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid ID' });
+    }
+
+    const item = await Offer.findById(req.params.id)
+      .populate('author', 'fullName');
+
     if (!item) {
       return res.status(404).json({ message: 'Offer not found' });
     }
-    res.json(item);
-  } catch (err) {
-    if (err.kind === 'ObjectId') {
-      return res.status(400).json({ message: 'Invalid ID format' });
+
+    if (item.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: 'Access denied' });
     }
+
+    res.json(item);
+
+  } catch (err) {
     res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
-// 4. CREATE NEW OFFER
+// 4. CREATE OFFER
 // ==========================================
 router.post('/', auth, async (req, res) => {
   try {
-    const { title, description, category, location, availability } = req.body;
-    
+    if (!req.user.apartmentId) {
+      return res.status(400).json({ message: "Set apartment first" });
+    }
+
+    const { title, description, location } = req.body;
+
+    if (!title || !description || !location) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
     const newOffer = new Offer({ 
       title, 
       description, 
-      category, 
-      location, 
-      availability, 
-      author: req.user.id 
+      location,
+      author: req.user.id,
+      apartmentId: req.user.apartmentId
     });
 
     const savedOffer = await newOffer.save();
-    
-    // 💡 THE FIX: Populate here so the frontend highlight works immediately
     const populatedOffer = await savedOffer.populate('author', 'fullName');
-    
+
     res.status(201).json(populatedOffer);
+
   } catch (err) {
-    console.error("Create Offer Error:", err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
-// 5. UPDATE OFFER (Content & Status)
+// 5. UPDATE OFFER
 // ==========================================
-// backend/routes/offers.js
-
 router.patch('/:id', auth, async (req, res) => {
   try {
-    const { title, description, location, status, category, availability } = req.body;
-    
-    // 1. MUST use Offer, not Request
-    let item = await Offer.findById(req.params.id); 
+    let item = await Offer.findById(req.params.id);
+
     if (!item) return res.status(404).json({ message: 'Offer not found' });
 
-    // 2. Match the structure from your auth.js (req.user.id)
-    if (item.author.toString() !== req.user.id) {
+   if (item.author.toString() !== req.user.id.toString()) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    if (title !== undefined) item.title = title;
-    if (description !== undefined) item.description = description;
-    if (location !== undefined) item.location = location;
-    if (category !== undefined) item.category = category;
-    if (availability !== undefined) item.availability = availability;
-    
-    if (status) {
-      item.status = status.toLowerCase().trim();
+    if (item.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
+    // ✅ SAFE UPDATE
+    const allowedFields = ['title', 'description', 'location', 'status'];
+    
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        item[field] = req.body[field];
+      }
+    });
+
     const updatedItem = await item.save();
-    res.json(updatedItem); // This ensures the frontend gets valid JSON
+    res.json(updatedItem);
 
   } catch (err) {
-    console.error("PATCH Error:", err.message);
-    // 💡 IMPORTANT: Send JSON even on error to stop the frontend SyntaxError
-    res.status(500).json({ message: 'Server Error', error: err.message });
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
@@ -124,14 +142,21 @@ router.patch('/:id', auth, async (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   try {
     const offer = await Offer.findById(req.params.id);
+
     if (!offer) return res.status(404).json({ message: 'Offer not found' });
 
-    if (offer.author.toString() !== req.user.id) {
+    if (offer.author.toString() !== req.user.id.toString()) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
+    if (offer.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
     await offer.deleteOne();
+
     res.json({ message: 'Offer removed successfully' });
+
   } catch (err) {
     res.status(500).json({ message: 'Server Error' });
   }

@@ -1,21 +1,33 @@
 const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
-  // The person sending the message
   sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  
-  // The person receiving the message
   receiver: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  
-  // The actual text of the message
-  content: { type: String, required: true },
-  
-  // Optional: We can link the message to the specific request/offer they are talking about!
+
+  content: { 
+    type: String, 
+    required: true,
+    trim: true,
+    minlength: 1
+  },
+
   relatedPostId: { type: mongoose.Schema.Types.ObjectId },
   postTitle: { type: String },
-  
-  // Has the receiver opened this yet?
-  isRead: { type: Boolean, default: false }
+
+  isRead: { type: Boolean, default: false },
+
+  apartmentId: { 
+    type: String, 
+    required: true,
+    trim: true,
+    lowercase: true
+  }
+
 }, { timestamps: true });
+
+// ✅ Indexes
+messageSchema.index({ receiver: 1 });
+messageSchema.index({ apartmentId: 1 });
+messageSchema.index({ receiver: 1, isRead: 1 });
 
 module.exports = mongoose.model('Message', messageSchema);

@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; 
 import SkeletonCard from '../components/SkeletonCard';
+import { jwtDecode } from "jwt-decode";
 
 export default function RequestsFeed() {
   const [requests, setRequests] = useState([]);
@@ -13,24 +14,37 @@ export default function RequestsFeed() {
   const [filterPriority, setFilterPriority] = useState("All");
 
   // 💡 IMPROVEMENT: Ensure we get the ID regardless of if it's stored as .id or ._id
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const currentUserId = user?.id || user?._id;
+  const token = localStorage.getItem("token");
+const user = token ? jwtDecode(token) : {};
+const currentUserId = user?.id;
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/requests`);
-        if (!response.ok) throw new Error("Failed to fetch requests");
-        const data = await response.json();
-        setRequests(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  const fetchRequests = async () => {
+    try {
+      if (!token) throw new Error("Not logged in");
+
+      const response = await fetch(`${API_URL}/api/requests`, {
+        headers: {
+          Authorization: `Bearer ${token}` // ✅ FIXED
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch requests");
       }
-    };
-    fetchRequests();
-  }, []);
+
+      const data = await response.json();
+      setRequests(data);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchRequests();
+}, []);
 
   const filteredRequests = requests.filter(req => {
     const matchesSearch = req.title.toLowerCase().includes(searchQuery.toLowerCase()) || 

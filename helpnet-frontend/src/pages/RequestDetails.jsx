@@ -19,27 +19,31 @@ export default function RequestDetails() {
   const currentUser = JSON.parse(localStorage.getItem("user") || "null");
 
   useEffect(() => {
-    const fetchRequestDetails = async () => {
-      // Guard against undefined ID
-      if (!id || id === "undefined") {
-        setError("Invalid Request ID provided.");
-        setLoading(false);
-        return;
-      }
+  const fetchRequest = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-      try {
-        const response = await fetch(`${API_URL}/api/requests/${id}`);
-        if (!response.ok) throw new Error("Request not found");
-        const data = await response.json();
-        setRequest(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRequestDetails();
-  }, [id]);
+      const res = await fetch(`${API_URL}/api/requests/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) throw new Error("Failed to fetch request");
+
+      const data = await res.json();
+      setRequest(data);
+
+    } catch (err) {
+      console.error(err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchRequest();
+}, [id]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();

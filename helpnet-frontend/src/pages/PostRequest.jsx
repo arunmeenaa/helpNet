@@ -15,41 +15,43 @@ export default function PostRequest() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      // 1. Get the user's token
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("You must be logged in to post a request.");
-      }
+  try {
+    const token = localStorage.getItem("token");
 
-      // 2. Send the data to the backend
-      const response = await fetch(`${API_URL}/api/requests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // Attach the VIP pass!
-        },
-        body: JSON.stringify(formData),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to post request. Please try again.");
-      }
-
-      // 3. Success! Go to the dashboard to see it
-      navigate("/dashboard");
-
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!token) {
+      throw new Error("You must be logged in.");
     }
-  };
+
+    const response = await fetch(`${API_URL}/api/requests`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(formData),
+    });
+
+    // 🔥 IMPORTANT DEBUG
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to post request");
+    }
+
+    navigate("/dashboard?tab=requests");
+
+  } catch (err) {
+    setError(err.message);
+    console.error("POST ERROR:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 relative overflow-hidden transition-colors duration-300">

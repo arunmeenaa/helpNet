@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; // This tells the file where to get the value
+import { jwtDecode } from "jwt-decode";
 
 export default function OfferDetails() {
   const { id } = useParams();
@@ -16,25 +17,34 @@ export default function OfferDetails() {
   const [isSending, setIsSending] = useState(false);
   const [sendStatus, setSendStatus] = useState(null); // "success" or "error"
 
-  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const token = localStorage.getItem("token");
+const currentUser = token ? jwtDecode(token) : null;
 
   useEffect(() => {
-    const fetchOfferDetails = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/offers/${id}`);
-        if (!response.ok) throw new Error("Offer not found or server error");
-        
-        const data = await response.json();
-        setOffer(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchOfferDetails = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-    fetchOfferDetails();
-  }, [id]);
+      const response = await fetch(`${API_URL}/api/offers/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error("Unauthorized or offer not found");
+
+      const data = await response.json();
+      setOffer(data);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchOfferDetails();
+}, [id]);
 
   // NEW: Function to send the message to the backend
   const handleSendMessage = async (e) => {
@@ -199,7 +209,7 @@ export default function OfferDetails() {
           {/* ========================================= */}
           
           <div className="flex flex-col gap-4">
-            {currentUser?.id === offer.author?._id ? (
+            {currentUser?.id === offer.author?._id?.toString() ? (
               <Link 
                 to="/dashboard"
                 className="w-full py-4 rounded-xl bg-gray-800 text-white font-bold text-lg hover:bg-gray-700 transition-all duration-200 flex items-center justify-center gap-2"

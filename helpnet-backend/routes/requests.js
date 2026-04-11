@@ -1,37 +1,43 @@
 const express = require('express');
 const router = express.Router();
-const Request = require('../models/Request'); // Ensure this model exists
+const Request = require('../models/Request');
 const auth = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 // ==========================================
-// 1. GET ALL REQUESTS (Public Feed)
+// 1. GET ALL REQUESTS
 // ==========================================
-router.get('/', async (req, res) => {
+router.get('/', auth, async (req, res) => {
   try {
-    // Exclude resolved requests and populate author details
+    if (!req.user.apartmentId) {
+      return res.status(400).json({ message: "Set apartment first" });
+    }
+
     const requests = await Request.find({ 
+      apartmentId: req.user.apartmentId,
       status: { $ne: 'resolved' } 
     })
     .populate('author', 'fullName')
     .sort({ createdAt: -1 });
 
     res.json(requests);
+
   } catch (err) {
-    console.error("Fetch All Error:", err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
-// 2. GET MY REQUESTS (Dashboard)
+// 2. GET MY REQUESTS
 // ==========================================
 router.get('/me', auth, async (req, res) => {
   try {
     const myRequests = await Request.find({ author: req.user.id })
       .sort({ createdAt: -1 });
+
     res.json(myRequests);
+
   } catch (err) {
-    console.error("Dashboard Error:", err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });
@@ -39,80 +45,101 @@ router.get('/me', auth, async (req, res) => {
 // ==========================================
 // 3. GET SINGLE REQUEST
 // ==========================================
-router.get('/:id', async (req, res) => {
+router.get('/:id', auth, async (req, res) => {
   try {
-    // 💡 FIXED: Changed 'Offer' to 'Request'
-    const item = await Request.findById(req.params.id).populate('author', 'fullName');
-    
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid ID' });
+    }
+
+    const item = await Request.findById(req.params.id)
+      .populate('author', 'fullName');
+
     if (!item) {
       return res.status(404).json({ message: 'Request not found' });
     }
-    res.json(item);
-  } catch (err) {
-    if (err.kind === 'ObjectId') {
-      return res.status(400).json({ message: 'Invalid ID format' });
+
+    if (item.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: 'Access denied' });
     }
+
+    res.json(item);
+
+  } catch (err) {
     res.status(500).json({ message: 'Server Error' });
   }
 });
 
 // ==========================================
-// 4. CREATE NEW REQUEST
+// 4. CREATE REQUEST
 // ==========================================
 router.post('/', auth, async (req, res) => {
   try {
     const { title, description, location, priority } = req.body;
-    
+
+    // ✅ VALIDATION (THIS FIXES YOUR 500)
+    if (!title || !description || !location || !priority) {
+      return res.status(400).json({
+        message: "All fields are required"
+      });
+    }
+
+    if (!req.user.apartmentId) {
+      return res.status(400).json({
+        message: "Set apartment first"
+      });
+    }
+
     const newRequest = new Request({
       title,
       description,
       location,
       priority,
-      author: req.user.id 
+      author: req.user.id,
+      apartmentId: req.user.apartmentId
     });
 
     const savedRequest = await newRequest.save();
-    
-    // 💡 ADDED: Populate author so highlight works immediately on frontend
+
     const populatedRequest = await savedRequest.populate('author', 'fullName');
-    
+
     res.status(201).json(populatedRequest);
+
   } catch (err) {
-    if (err.name === 'ValidationError') {
-      const message = Object.values(err.errors).map(val => val.message)[0];
-      return res.status(400).json({ message });
-    }
-    console.error("Create Error:", err.message);
-    res.status(500).json({ message: 'Server Error' });
+    console.error("CREATE REQUEST ERROR:", err.message); // 🔥 ADD THIS
+    res.status(500).json({ message: 'Server Error', error: err.message });
   }
 });
 
 // ==========================================
-// 5. UPDATE REQUEST (Handles Content & Status)
+// 5. UPDATE REQUEST
 // ==========================================
 router.patch('/:id', auth, async (req, res) => {
   try {
-    const { title, description, location, status, priority } = req.body;
-    
     let request = await Request.findById(req.params.id);
+
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
-    // Authorization check
-    if (request.author.toString() !== req.user.id) {
+    if (request.author.toString() !== req.user.id.toString()) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    // Update fields if they exist in request body
-    if (title) request.title = title;
-    if (description) request.description = description;
-    if (location) request.location = location;
-    if (priority) request.priority = priority;
-    if (status) request.status = status.toLowerCase();
+    if (request.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // ✅ SAFE UPDATE
+    const allowedFields = ['title', 'description', 'location', 'priority', 'status'];
+
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        request[field] = req.body[field];
+      }
+    });
 
     const updatedRequest = await request.save();
     res.json(updatedRequest);
+
   } catch (err) {
-    console.error("Update Error:", err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });
@@ -123,18 +150,22 @@ router.patch('/:id', auth, async (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   try {
     const request = await Request.findById(req.params.id);
-    
+
     if (!request) return res.status(404).json({ message: 'Request not found' });
 
-    // Authorization check
-    if (request.author.toString() !== req.user.id) {
-      return res.status(401).json({ message: 'User not authorized' });
+    if (request.author.toString() !== req.user.id.toString())  {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    if (request.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     await request.deleteOne();
+
     res.json({ message: 'Request removed successfully' });
+
   } catch (err) {
-    console.error("Delete Error:", err.message);
     res.status(500).json({ message: 'Server Error' });
   }
 });

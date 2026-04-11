@@ -37,7 +37,13 @@ export default function Login() {
       toast.success(`Welcome back, ${data.user.fullName || 'User'}! 🎉`, { id: loginToast });
       
       // Delay redirect slightly so user can see the success toast
-      setTimeout(() => navigate("/dashboard"), 1000);
+      setTimeout(() => {
+  if (!data.user.apartmentId) {
+    navigate("/set-apartment");
+  } else {
+    navigate("/dashboard");
+  }
+}, 1000);
 
     } catch (err) {
       setError(err.message);

@@ -5,6 +5,7 @@ import Footer from "../components/Footer";
 import API_URL from '../api'; // This tells the file where to get the value
 import Loading from '../components/Loading';
 import SkeletonCard from '../components/SkeletonCard'; // Adjust path if needed
+import { jwtDecode } from "jwt-decode";
 
 export default function AvailableHelp() {
   const [offers, setOffers] = useState([]);
@@ -14,14 +15,21 @@ export default function AvailableHelp() {
   
 
   // 1. Grab the currently logged-in user
-  const currentUser = JSON.parse(localStorage.getItem("user") || "null");
+  const token = localStorage.getItem("token");
+  const currentUser = token ? jwtDecode(token) : null;
 
   // Fetch live offers from MongoDB
   useEffect(() => {
     const fetchOffers = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/offers`);
-        if (!response.ok) throw new Error("Failed to fetch offers");
+        const response = await fetch(`${API_URL}/api/offers`, {
+  headers: {
+    Authorization: `Bearer ${token}`
+  }
+});
+        if (!response.ok) {
+  throw new Error("Unauthorized or failed to fetch offers");
+}
 
         const data = await response.json();
         setOffers(data);
@@ -111,8 +119,8 @@ export default function AvailableHelp() {
   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {filteredOffers.map((offer) => {
   // 💡 THE FIX: Standardize both IDs to strings for a perfect match
-  const currentUserId = currentUser?.id || currentUser?._id;
-  const authorId = offer.author?._id || offer.author;
+  const currentUserId = currentUser?.id;
+  const authorId = offer.author?.id || offer.author;
   const isOwner = currentUserId?.toString() === authorId?.toString();
 
   return (

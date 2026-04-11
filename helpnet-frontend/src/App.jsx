@@ -8,6 +8,7 @@ import RequestDetails from "./pages/RequestDetails";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import OfferDetails from "./pages/OfferDetails";
+import SetApartment from "./pages/SetApartment"; 
 import About from "./pages/About";
 import ScrollToTop from "./components/ScrollToTop";
 import Register from "./pages/Register";
@@ -39,6 +40,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/set-apartment" element={<SetApartment />} />
         <Route
           path="/RequestDetails"
           element={
