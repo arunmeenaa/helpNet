@@ -531,13 +531,7 @@ export default function Dashboard() {
   className={`p-5 md:p-6 rounded-2xl border transition-all duration-300 
     ${isResolved ? "bg-gray-100 dark:bg-gray-800/40 opacity-60" : "bg-white dark:bg-gray-900 shadow-sm"}
     
-    ${
-      isOwner
-        ? post.postType === "offers"
-          ? "ring-2 ring-teal-500 bg-teal-50 dark:bg-teal-900/10"
-          : "ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/10"
-        : ""
-    }
+  
   `}
 >
                         {editingPost === post._id ? (

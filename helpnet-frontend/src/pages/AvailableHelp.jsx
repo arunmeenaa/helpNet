@@ -120,7 +120,7 @@ export default function AvailableHelp() {
     {filteredOffers.map((offer) => {
   // 💡 THE FIX: Standardize both IDs to strings for a perfect match
   const currentUserId = currentUser?.id;
-  const authorId = offer.author?.id || offer.author;
+  const authorId = offer.author?._id || offer.author;
   const isOwner = currentUserId?.toString() === authorId?.toString();
 
   return (
