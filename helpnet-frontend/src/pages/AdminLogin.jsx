@@ -130,7 +130,7 @@ export default function AdminLogin() {
               disabled={loading}
               className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-lg shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Authenticating..." : "Login to Dashboard"}
+              {loading ? "Authenticating..." : "Login"}
             </button>
           </form>
 

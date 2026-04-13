@@ -72,7 +72,7 @@ export default function AdminRegister() {
 
           <div className="text-center mb-8">
             <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">
-              👑 Admin Register
+               Admin Register
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               Create your apartment admin account

@@ -168,55 +168,76 @@ useEffect(() => {
     }
   };
 
+ // ==========================================
+  // 🚨 GATEKEEPER: IF USER HAS NO APARTMENT
+  // ==========================================
   if (!apartmentIdFromStorage) {
+    const isAdmin = localStorageUser.role === "admin";
+
     return (
       <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
         <Navbar />
-        <main className="flex-grow flex items-center justify-center px-4 py-12">
-          <div className="max-w-md w-full bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-xl p-8 border border-gray-100 dark:border-gray-800 text-center">
+        <main className="flex-grow flex items-center justify-center px-4 py-12 relative overflow-hidden">
+          
+          {/* Ambient Background Glows */}
+          <div className={`absolute top-1/4 left-1/4 w-64 h-64 rounded-full blur-[120px] pointer-events-none ${isAdmin ? 'bg-purple-500/10' : 'bg-blue-500/10'}`} />
+          <div className={`absolute bottom-1/4 right-1/4 w-64 h-64 rounded-full blur-[120px] pointer-events-none ${isAdmin ? 'bg-indigo-500/10' : 'bg-cyan-500/10'}`} />
+
+          <div className="max-w-md w-full relative group">
+            {/* Soft Outer Glow */}
+            <div className={`absolute -inset-1 rounded-[2.6rem] blur opacity-20 transition duration-1000 ${isAdmin ? 'bg-gradient-to-r from-purple-600 to-indigo-500' : 'bg-gradient-to-r from-blue-600 to-cyan-500'}`}></div>
             
-            {/* 🚨 Eviction Notice */}
-            {isEvicted && (
-              <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3 text-left animate-in fade-in slide-in-from-top-4 duration-500">
-                <AlertTriangle className="text-red-500 shrink-0 mt-1" size={20} />
-                <div>
-                  <h3 className="font-bold text-red-800 dark:text-red-400 text-sm">You were removed</h3>
-                  <p className="text-xs text-red-600 dark:text-red-300 mt-1 leading-relaxed">
-                    The administrator has removed you from your previous community. You must join a new apartment to access dashboard features.
+            <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-8 md:p-10 border border-white/20 dark:border-gray-800/50 text-center animate-in fade-in zoom-in duration-500">
+              
+              {/* 🚨 Eviction Notice (Only show if previously evicted) */}
+              {isEvicted && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3 text-left">
+                  <AlertTriangle className="text-red-500 shrink-0 mt-1" size={18} />
+                  <p className="text-xs text-red-600 dark:text-red-300 leading-relaxed">
+                    You were removed from your previous community. Please {isAdmin ? "re-register your apartment" : "join a new one"}.
                   </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/10">
-              <Building size={40} />
+              {/* Dynamic Icon based on Role */}
+              <div className={`w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center shadow-lg transition-transform hover:rotate-6 ${isAdmin ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
+                {isAdmin ? <Building size={40} className="animate-pulse" /> : <Building size={40} />}
+              </div>
+              
+              <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                {isAdmin ? "Set Up Apartment" : "Join a Community"}
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 mb-8">
+                {isAdmin 
+                  ? "As an admin, you need to register an Apartment ID to start managing your community." 
+                  : "Please enter the Apartment ID provided by your building manager to reconnect."}
+              </p>
+
+              <form onSubmit={handleJoinApartment} className="space-y-4 text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
+                    {isAdmin ? "Create Apartment ID" : "Apartment ID"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={isAdmin ? "e.g. SKYLINE-7" : "e.g. SUNSET-402"}
+                    className={`w-full px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 transition-all uppercase font-mono tracking-widest dark:text-white ${isAdmin ? 'focus:ring-purple-500' : 'focus:ring-blue-500'}`}
+                    value={newApartmentId}
+                    onChange={(e) => setNewApartmentId(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`w-full text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-lg ${isAdmin ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}
+                >
+                  {loading ? "Processing..." : isAdmin ? "Register Apartment" : "Join Apartment"} 
+                  <Send size={18} />
+                </button>
+              </form>
             </div>
-            
-            <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Join a Community</h2>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 mb-8">
-              Please enter the Apartment ID provided by your building manager to reconnect.
-            </p>
-
-            <form onSubmit={handleJoinApartment} className="space-y-4 text-left">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Apartment ID</label>
-                <input
-                  type="text"
-                  placeholder="e.g. SUNSET-402"
-                  className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all uppercase font-mono tracking-widest"
-                  value={newApartmentId}
-                  onChange={(e) => setNewApartmentId(e.target.value)}
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-600/20"
-              >
-                {loading ? "Verifying..." : "Join Apartment"} <Send size={18} />
-              </button>
-            </form>
           </div>
         </main>
         <Footer />
