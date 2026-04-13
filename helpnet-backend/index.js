@@ -2,9 +2,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
-const http = require('http'); // 💡 1. Import HTTP
-const { Server } = require('socket.io'); // 💡 2. Import Socket.io
+const http = require('http'); 
+const { Server } = require('socket.io'); 
 const profileRoutes = require('./routes/profile');
+const adminRoutes = require("./routes/admin");
 
 require('dotenv').config();
 
@@ -13,7 +14,7 @@ const app = express();
 // Create HTTP server to wrap the Express app
 const server = http.createServer(app); 
 
-// 💡 3. Initialize Socket.io with CORS
+// Initialize Socket.io with CORS
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
@@ -22,9 +23,9 @@ const io = new Server(server, {
   }
 });
 
-app.use(express.json());
-app.use(passport.initialize()); 
-
+// ==========================================
+// 🚨 1. CORS GOES FIRST! 
+// ==========================================
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
@@ -44,6 +45,17 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
+// ==========================================
+// 🚨 2. BODY PARSER GOES SECOND
+// ==========================================
+app.use(express.json());
+app.use(passport.initialize()); 
+
+// ==========================================
+// 🚨 3. ROUTES GO THIRD
+// ==========================================
+app.use("/api/admin", adminRoutes);
+
 // 💡 4. Socket.io Connection Logic
 io.on('connection', (socket) => {
   console.log('⚡ User connected:', socket.id);
@@ -56,8 +68,6 @@ io.on('connection', (socket) => {
 
   // Listen for real-time messages
   socket.on('send_message', (data) => {
-    // data: { receiverId, senderId, senderName, content, relatedPostId }
-    // This sends the message instantly to the receiver's private room
     socket.to(data.receiverId).emit('receive_message', data);
   });
 
@@ -91,7 +101,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong on the server!' });
 });
 
-// 💡 5. CRITICAL: Use server.listen instead of app.listen
+// CRITICAL: Use server.listen instead of app.listen
 server.listen(PORT, () => {
   console.log(`🚀 Real-time Server running on port ${PORT}`);
 });

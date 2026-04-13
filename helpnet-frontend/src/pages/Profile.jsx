@@ -39,6 +39,23 @@ export default function Profile() {
           }),
         ]);
 
+        // 💡 THE FIX: Catch the 403 Forbidden (Eviction)
+     // 💡 THE FIX: Check userRes instead of 'res'
+if (userRes.status === 403 || requestsRes.status === 403 || offersRes.status === 403) {
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  
+  // Update local state to reflect the eviction
+  const updatedUser = { ...storedUser, apartmentId: null, isEvicted: true };
+  localStorage.setItem("user", JSON.stringify(updatedUser));
+  
+  // Notify the rest of the app (Navbar, etc.)
+  window.dispatchEvent(new Event("local-storage-update"));
+  
+  toast.error("You are no longer in this community.");
+  navigate("/dashboard");
+  return;
+}
+
         if (userRes.ok && requestsRes.ok && offersRes.ok) {
           const uData = await userRes.json();
           const rData = await requestsRes.json();

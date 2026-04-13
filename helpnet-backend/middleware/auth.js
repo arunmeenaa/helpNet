@@ -22,7 +22,9 @@ module.exports = async function(req, res, next) {
 
     req.user = {
       id: user._id,
-      apartmentId: user.apartmentId?.trim() || null
+      role: user.role, // 👈 Add this
+      apartmentId: user.apartmentId?.trim() || null,
+      isEvicted: user.isEvicted // 👈 Add this so the frontend can show the red message
     };
     console.log("AUTH USER:", req.user);
 

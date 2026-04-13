@@ -4,19 +4,26 @@ import Footer from "../components/Footer";
 import API_URL from "../api";
 import { toast } from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CheckCircle, RotateCcw, Edit3, Trash2, Send } from "lucide-react";
-// 💡 1. Import Socket.IO Client
+import { CheckCircle, RotateCcw, Edit3, Trash2, Send, Building, AlertTriangle } from "lucide-react"; // Added Building, AlertTriangle
 import { io } from "socket.io-client";
 import { jwtDecode } from "jwt-decode";
 
-// 💡 2. Connect to the backend socket outside the component
 const socket = io(API_URL);
 
 export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+  
+  // 💡 Parse user from both Token and LocalStorage to catch the 'isEvicted' flag
   const user = token ? jwtDecode(token) : null;
+  const localStorageUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const isEvicted = localStorageUser.isEvicted || false;
+  const apartmentIdFromStorage = localStorageUser.apartmentId;
+  // ==========================================
+  // 🚨 GATEKEEPER: IF USER HAS NO APARTMENT
+  // ==========================================
+  
 
   const chatContainerRef = useRef(null);
 
@@ -25,6 +32,7 @@ export default function Dashboard() {
   const [myPosts, setMyPosts] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [newApartmentId, setNewApartmentId] = useState(""); // 💡 Added for Join Form
 
   // Chat States
   const [conversation, setConversation] = useState([]);
@@ -37,20 +45,15 @@ export default function Dashboard() {
   const [editingPost, setEditingPost] = useState(null);
   const [editData, setEditData] = useState({ title: "", description: "" });
 
-  // 💡 FIX: Safely separated URL Tab Checker
+  // URL Tab Checker
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get("tab");
-    if (tab === "messages") {
-      setActiveTab("messages");
-    } else if (tab === "offers") {
-      setActiveTab("offers");
-    } else if (tab === "requests") {
-      setActiveTab("requests");
-    }
+    if (tab === "messages") setActiveTab("messages");
+    else if (tab === "offers") setActiveTab("offers");
+    else if (tab === "requests") setActiveTab("requests");
   }, [location.search]);
 
-  // 💡 3. We use a Ref to keep track of who we are chatting with inside the Socket event
   const replyingToRef = useRef(replyingTo);
   useEffect(() => {
     replyingToRef.current = replyingTo;
@@ -59,291 +62,167 @@ export default function Dashboard() {
   // --- REAL-TIME SOCKET CONNECTION ---
   useEffect(() => {
     if (user?.id) {
-      // Tell the server this user is online and join their private room
       socket.emit("join_room", user.id);
     }
-
-    // Listen for incoming messages
     const handleReceiveMessage = (newMsg) => {
       const senderId = (newMsg.sender?._id || newMsg.sender)?.toString();
-
-      // 1. Instantly add the new message to the general Inbox preview
       setMessages((prev) => [newMsg, ...prev]);
-
-      // 2. If the user is currently looking at the chat with this person:
       if (replyingToRef.current === senderId) {
         setConversation((prev) => [...prev, newMsg]);
-
-        // Optionally mark it as read immediately since they are staring at it
-        const token = localStorage.getItem("token");
-        fetch(`${API_URL}/api/messages/${newMsg._id}/read`, {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then(() => {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m._id === newMsg._id ? { ...m, isRead: true } : m,
-              ),
-            );
-          })
-          .catch((err) => console.log(err));
       } else {
-        // Only show a toast notification if they aren't actively in the chat
         toast(`New message from ${newMsg.sender?.fullName || "someone"}!`);
       }
     };
-
     socket.on("receive_message", handleReceiveMessage);
-
-    // Cleanup the listener when the component unmounts
-    return () => {
-      socket.off("receive_message", handleReceiveMessage);
-    };
+    return () => socket.off("receive_message", handleReceiveMessage);
   }, [user?.id]);
 
-  // Precise Scroll Logic
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: "smooth",
-      });
-    }
-  }, [conversation, replyingTo]);
-
-  // --- Logic: Group Messages for Inbox ---
-  const groupedMessages = useMemo(() => {
-    const groups = {};
-    messages.forEach((msg) => {
-      const otherUser = msg.sender?._id === user.id ? msg.receiver : msg.sender;
-
-      const otherId = (otherUser?._id || otherUser)?.toString();
-      if (
-        otherId &&
-        (!groups[otherId] ||
-          new Date(msg.createdAt) > new Date(groups[otherId].createdAt))
-      ) {
-        groups[otherId] = { ...msg, otherUser };
-      }
-    });
-    return Object.values(groups);
-  }, [messages, user?.id]);
-
   // --- Fetching Data ---
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return navigate("/login");
-      try {
-        const [reqRes, offerRes, msgRes] = await Promise.all([
-          fetch(`${API_URL}/api/requests/me`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${API_URL}/api/offers/me`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(`${API_URL}/api/messages/inbox`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-
-        if (!reqRes.ok || !offerRes.ok || !msgRes.ok) {
-          throw new Error("API failed");
-        }
-
-        const requests = await reqRes.json();
-        const offers = await offerRes.json();
-        const messagesData = await msgRes.json();
-        setMyPosts([
-          ...(Array.isArray(requests)
-            ? requests.map((r) => ({
-                ...r,
-                postType: "requests",
-                author: r.author?._id || r.author,
-              }))
-            : []),
-          ...(Array.isArray(offers)
-            ? offers.map((o) => ({
-                ...o,
-                postType: "offers",
-                author: o.author?._id || o.author,
-              }))
-            : []),
-        ]);
-        setMessages(Array.isArray(messagesData) ? messagesData : []);
-      } catch (err) {
-        console.error("Dashboard Load Error", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDashboardData();
-  }, [navigate]);
-
-  // --- Chat Actions ---
-  const openConversation = async (otherUserId, msgId, isRead) => {
-    if (replyingTo === otherUserId) return setReplyingTo(null);
-
-    setReplyingTo(otherUserId);
-    setLoadingChat(true);
+ // --- Fetching Data ---
+  // --- Fetching Data ---
+useEffect(() => {
+  const fetchDashboardData = async () => {
     const token = localStorage.getItem("token");
+    if (!token) return navigate("/login");
 
-    // Auto Mark as Read logic
-    if (!isRead && msgId) {
-      try {
-        await fetch(`${API_URL}/api/messages/${msgId}/read`, {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setMessages((prev) =>
-          prev.map((m) => (m._id === msgId ? { ...m, isRead: true } : m)),
-        );
-      } catch (err) {
-        console.error("Auto-read failed", err);
-      }
-    }
-
-    try {
-      const res = await fetch(
-        `${API_URL}/api/messages/conversation/${otherUserId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
-      const data = await res.json();
-      setConversation(Array.isArray(data) ? data : []);
-    } catch (err) {
-      toast.error("Error loading chat history.");
-    } finally {
-      setLoadingChat(false);
-    }
-  };
-
-  const handleReply = async (e, otherUserId, relatedPostId, postTitle) => {
-    e.preventDefault();
-    if (!replyContent.trim()) return;
-
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch(`${API_URL}/api/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          receiverId: otherUserId,
-          content: replyContent,
-          relatedPostId,
-          postTitle,
-        }),
-      });
-
-      if (res.ok) {
-        const savedMsg = await res.json();
-
-        // Update local flow immediately
-        setConversation((prev) => [
-          ...prev,
-          { ...savedMsg, sender: { _id: user.id } },
-        ]);
-        setReplyContent("");
-
-        // 💡 4. EMIT REAL-TIME MESSAGE TO BACKEND
-        socket.emit("send_message", {
-          ...savedMsg,
-          receiverId: otherUserId,
-        });
-      }
-    } catch (err) {
-      toast.error("Failed to send message.");
-    }
-  };
-
-  // --- Post Management Actions ---
-  const handleUpdateStatus = async (postId, postType, newStatus) => {
-    const post = myPosts.find((p) => p._id === postId); // ✅ FIRST
-
-    if (post?.author !== user?.id) {
-      toast.error("You are not the owner of this post");
-      setUpdatingStatusId(null);
+    // 💡 1. STOP if user already has no apartment in LocalStorage
+    // This prevents broken requests from even firing
+    if (!apartmentIdFromStorage) {
+      setLoading(false);
       return;
     }
 
-    setUpdatingStatusId(postId);
-
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      const [reqRes, offerRes, msgRes] = await Promise.all([
+        fetch(`${API_URL}/api/requests/me`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/offers/me`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/messages/inbox`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
 
-      if (!res.ok) throw new Error();
+      // 💡 2. HANDLE EVICTION (403)
+      if (reqRes.status === 403 || offerRes.status === 403) {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const updatedUser = { ...storedUser, apartmentId: null, isEvicted: true };
+        
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        
+        // Notify Navbar to stop its own background requests
+        window.dispatchEvent(new Event("local-storage-update"));
+        
+        toast.error("You are no longer part of this community.");
+        setLoading(false);
+        return; 
+      }
 
-      const result = await res.json();
+      if (reqRes.ok && offerRes.ok && msgRes.ok) {
+        const requests = await reqRes.json();
+        const offers = await offerRes.json();
+        const messagesData = await msgRes.json();
 
-      setMyPosts((prev) =>
-        prev.map((p) =>
-          p._id === postId ? { ...p, ...result, status: newStatus } : p,
-        ),
-      );
-
-      toast.success(`Post marked as ${newStatus}!`);
+        setMyPosts([
+          ...requests.map(r => ({ ...r, postType: "requests", author: r.author?._id || r.author })),
+          ...offers.map(o => ({ ...o, postType: "offers", author: o.author?._id || o.author }))
+        ]);
+        setMessages(Array.isArray(messagesData) ? messagesData : []);
+      }
     } catch (err) {
-      toast.error("Update failed.");
+      console.error("Dashboard Sync Error:", err);
     } finally {
-      setUpdatingStatusId(null);
+      setLoading(false);
     }
   };
 
-  const deletePost = async (postId, postType) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
-    const token = localStorage.getItem("token");
-    try {
-      const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        setMyPosts(myPosts.filter((p) => p._id !== postId));
-        toast.success("Post removed!");
-      }
-    } catch (err) {
-      toast.error("Delete failed.");
-    }
-  };
+  fetchDashboardData();
+}, [navigate, token, apartmentIdFromStorage]); // apartmentIdFromStorage is a dependency
 
-  const handleUpdatePost = async (e, postId, postType) => {
+  // --- Join Apartment Action ---
+  const handleJoinApartment = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
+    if (!newApartmentId.trim()) return;
+    setLoading(true);
+
     try {
-      const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
+      const res = await fetch(`${API_URL}/api/auth/set-apartment`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(editData),
+        body: JSON.stringify({ apartmentId: newApartmentId }),
       });
-      if (res.ok) {
-        const updatedDoc = await res.json();
-        setMyPosts(
-          myPosts.map((p) => (p._id === postId ? { ...p, ...updatedDoc } : p)),
-        );
-        setEditingPost(null);
-        toast.success("Updated!");
-      }
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      // 💡 Update local storage and reset the eviction flag
+      const updatedUser = { ...localStorageUser, apartmentId: data.apartmentId, isEvicted: false };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      localStorage.setItem("token", data.token);
+
+      toast.success("Welcome back to a community! 🎉");
+      window.location.reload(); 
     } catch (err) {
-      toast.error("Connection error.");
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
+  if (!apartmentIdFromStorage) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+        <Navbar />
+        <main className="flex-grow flex items-center justify-center px-4 py-12">
+          <div className="max-w-md w-full bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-xl p-8 border border-gray-100 dark:border-gray-800 text-center">
+            
+            {/* 🚨 Eviction Notice */}
+            {isEvicted && (
+              <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3 text-left animate-in fade-in slide-in-from-top-4 duration-500">
+                <AlertTriangle className="text-red-500 shrink-0 mt-1" size={20} />
+                <div>
+                  <h3 className="font-bold text-red-800 dark:text-red-400 text-sm">You were removed</h3>
+                  <p className="text-xs text-red-600 dark:text-red-300 mt-1 leading-relaxed">
+                    The administrator has removed you from your previous community. You must join a new apartment to access dashboard features.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/10">
+              <Building size={40} />
+            </div>
+            
+            <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Join a Community</h2>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 mb-8">
+              Please enter the Apartment ID provided by your building manager to reconnect.
+            </p>
+
+            <form onSubmit={handleJoinApartment} className="space-y-4 text-left">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Apartment ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. SUNSET-402"
+                  className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all uppercase font-mono tracking-widest"
+                  value={newApartmentId}
+                  onChange={(e) => setNewApartmentId(e.target.value)}
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-lg shadow-blue-600/20"
+              >
+                {loading ? "Verifying..." : "Join Apartment"} <Send size={18} />
+              </button>
+            </form>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300 overflow-x-hidden">
       <Navbar />

@@ -9,6 +9,10 @@ export default function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // ✅ NEW: role toggle
+  
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -17,6 +21,7 @@ export default function Login() {
     setLoading(true);
 
     const loginToast = toast.loading('Authenticating...');
+  
 
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
@@ -34,16 +39,25 @@ export default function Login() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      toast.success(`Welcome back, ${data.user.fullName || 'User'}! 🎉`, { id: loginToast });
       
-      // Delay redirect slightly so user can see the success toast
-      setTimeout(() => {
-  if (!data.user.apartmentId) {
+
+      toast.success(`Welcome back, ${data.user.fullName || 'User'}! 🎉`, { id: loginToast });
+
+    setTimeout(() => {
+  const user = data.user;
+
+  if (user.role === "admin" && !user.apartmentId) {
+    navigate("/create-apartment");
+  } else if (user.role === "admin") {
+    navigate("/admin");
+  } else if (!user.apartmentId) {
     navigate("/set-apartment");
   } else {
     navigate("/dashboard");
   }
+
 }, 1000);
+      console.log("LOGIN USER:", data.user);
 
     } catch (err) {
       setError(err.message);
@@ -53,10 +67,8 @@ export default function Login() {
     }
   };
 
-  // Google Login Handler
   const handleGoogleLogin = () => {
-    // Redirects directly to the backend route we created
-    window.location.href = `${API_URL}/api/auth/google`;
+    window.location.href = `${API_URL}/api/auth/google?role=user`;
   };
 
   const inputStyle = "w-full px-4 py-3.5 bg-gray-50 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none text-gray-900 dark:text-white transition-all";
@@ -70,14 +82,16 @@ export default function Login() {
           
           <div className="text-center mb-8">
             <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-              Welcome Back
+              Welcome
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               Please sign in to your HelpNet account
             </p>
           </div>
 
-          {/* Google Login Button */}
+      
+
+          {/* Google Login */}
           <button 
             onClick={handleGoogleLogin}
             className="w-full flex items-center justify-center gap-3 py-3 px-4 mb-6 border border-gray-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-gray-700 dark:text-gray-200 font-semibold shadow-sm active:scale-[0.98]"
@@ -138,6 +152,7 @@ export default function Login() {
 
         </div>
       </main>
+
       <Footer />
     </div>
   );

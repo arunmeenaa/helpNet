@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom"; // Don't forget to import Link!
+import { useNavigate, Link } from "react-router-dom";
+import { LogIn, ShieldAlert, HandHelping, Search, Shield } from "lucide-react"; // Don't forget to import Link!
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; // This tells the file where to get the value
 import Loading from '../components/Loading';
 import SkeletonCard from '../components/SkeletonCard'; // Adjust path if needed
 import { jwtDecode } from "jwt-decode";
+
+
 
 export default function AvailableHelp() {
   const [offers, setOffers] = useState([]);
@@ -16,32 +19,103 @@ export default function AvailableHelp() {
 
   // 1. Grab the currently logged-in user
   const token = localStorage.getItem("token");
+  const navigate = useNavigate();
   const currentUser = token ? jwtDecode(token) : null;
+ if (!token) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-300">
+        <Navbar />
+        
+        {/* Main takes up all remaining space minus Navbar/Footer */}
+        <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+          
+          {/* Ambient Background Glows */}
+          <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
+          <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
+
+          <div className="max-w-md w-full relative group">
+            {/* The "Glow" behind the card */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-[2.6rem] blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+            
+            <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-8 md:p-12 border border-white/20 dark:border-gray-800/50 text-center animate-in fade-in zoom-in duration-500">
+              
+              {/* Security Icon with animated Ring */}
+              <div className="relative w-24 h-24 mx-auto mb-8">
+                <div className="absolute inset-0 bg-blue-500/20 rounded-3xl rotate-12 animate-pulse"></div>
+                <div className="relative w-full h-full bg-blue-600 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/40">
+                  <ShieldAlert size={44} strokeWidth={1.5} />
+                </div>
+              </div>
+
+              <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter mb-4">
+                Community Access Only
+              </h2>
+              
+              <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-10 px-2">
+                This community feed is private. Join your neighbors by signing in to view and offer help in your apartment.
+              </p>
+
+              <div className="space-y-4">
+                <button
+                  onClick={() => navigate("/login")}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-xl shadow-blue-500/25 group"
+                >
+                  <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> 
+                  Sign In to Continue
+                </button>
+                
+                <Link 
+                  to="/register" 
+                  className="block py-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                >
+                  Don't have an account? <span className="underline decoration-2 underline-offset-4">Register</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <Footer />
+      </div>
+    );
+  
+  }
 
   // Fetch live offers from MongoDB
   useEffect(() => {
-    const fetchOffers = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/offers`, {
-  headers: {
-    Authorization: `Bearer ${token}`
-  }
-});
-        if (!response.ok) {
-  throw new Error("Unauthorized or failed to fetch offers");
-}
+  const fetchOffers = async () => {
+    const token = localStorage.getItem("token");
+    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-        const data = await response.json();
-        setOffers(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+    // 💡 1. STOP: If no token or no apartment, don't even try to fetch
+    if (!token || !storedUser.apartmentId) {
+      setLoading(false);
+      return; 
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/offers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // 💡 2. HANDLE EVICTION: If server returns 401/403
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("token"); // Optional: clear token if 401
+        navigate("/login"); 
+        return;
       }
-    };
 
-    fetchOffers();
-  }, []);
+      const data = await res.json();
+      setOffers(data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchOffers();
+},  []);
 
   const filteredOffers = offers.filter(
     (offer) =>

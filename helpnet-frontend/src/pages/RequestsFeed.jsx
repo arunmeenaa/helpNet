@@ -1,50 +1,123 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom"; 
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; 
 import SkeletonCard from '../components/SkeletonCard';
 import { jwtDecode } from "jwt-decode";
+import { LogIn, Search, ShieldAlert } from "lucide-react"; 
 
 export default function RequestsFeed() {
+  const navigate = useNavigate(); 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterPriority, setFilterPriority] = useState("All");
 
-  // 💡 IMPROVEMENT: Ensure we get the ID regardless of if it's stored as .id or ._id
   const token = localStorage.getItem("token");
-const user = token ? jwtDecode(token) : {};
-const currentUserId = user?.id;
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const apartmentId = storedUser.apartmentId;
 
+  // 💡 FIXED: Define currentUserId here so it is available to the entire component
+  const decodedToken = token ? jwtDecode(token) : null;
+  const currentUserId = decodedToken?.id || decodedToken?.sub;
+
+  // ==========================================
+  // 🚨 GUEST GUARD (Premium Glassmorphism Alert)
+  // ==========================================
+  if (!token) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-300">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
+          {/* Animated Background Blurs */}
+          <div className="absolute top-1/3 -left-20 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none animate-pulse" />
+          <div className="absolute bottom-1/3 -right-20 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
+
+          <div className="max-w-md w-full relative group">
+            {/* Outer Glow Effect */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-500 rounded-[2.6rem] blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
+            
+            <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-10 md:p-12 border border-white/20 dark:border-gray-800/50 text-center animate-in fade-in zoom-in duration-700">
+              
+              {/* Centered Security Icon */}
+              <div className="relative w-24 h-24 mx-auto mb-8">
+                <div className="absolute inset-0 bg-purple-500/20 rounded-3xl -rotate-6 animate-pulse"></div>
+                <div className="relative w-full h-full bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-purple-500/40">
+                  <Search size={44} strokeWidth={1.5} />
+                </div>
+              </div>
+
+              <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter mb-4 leading-tight">
+                Community Feed Restricted
+              </h2>
+              
+              <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-10 px-2">
+                Neighbor requests are visible only to verified residents. Sign in to see what’s happening in your apartment.
+              </p>
+
+              <div className="space-y-4">
+                <button 
+                  onClick={() => navigate("/login")} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-xl shadow-blue-500/25 group"
+                >
+                  <LogIn size={22} className="group-hover:translate-x-1 transition-transform" /> 
+                  Sign In to View Feed
+                </button>
+                
+                <Link to="/register" className="block py-2 text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors">
+                  New to HelpNet? <span className="underline decoration-2 underline-offset-4 font-black">Join now</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 👤 FETCH LOGIC
+  // ==========================================
   useEffect(() => {
-  const fetchRequests = async () => {
-    try {
-      if (!token) throw new Error("Not logged in");
-
-      const response = await fetch(`${API_URL}/api/requests`, {
-        headers: {
-          Authorization: `Bearer ${token}` // ✅ FIXED
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch requests");
+    const fetchRequests = async () => {
+      if (!apartmentId) {
+        setLoading(false);
+        return;
       }
 
-      const data = await response.json();
-      setRequests(data);
+      try {
+        const response = await fetch(`${API_URL}/api/requests`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+        if (response.status === 403) {
+          const updatedUser = { ...storedUser, apartmentId: null, isEvicted: true };
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          window.dispatchEvent(new Event("local-storage-update"));
+          navigate("/dashboard");
+          return;
+        }
 
-  fetchRequests();
-}, []);
+        if (!response.ok) throw new Error("Failed to fetch requests");
+        const data = await response.json();
+        setRequests(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRequests();
+  }, [token, apartmentId, navigate]);
+
+  if (!apartmentId) {
+     navigate("/dashboard");
+     return null;
+  }
 
   const filteredRequests = requests.filter(req => {
     const matchesSearch = req.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -63,7 +136,7 @@ const currentUserId = user?.id;
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 relative overflow-hidden transition-colors duration-300">
       <Navbar />
 
-      {/* Decorative Background */}
+      {/* Decorative Background Glow */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-500/10 dark:bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
       
       <main className="flex-grow w-full max-w-7xl mx-auto px-6 py-12 relative z-10">
@@ -118,7 +191,6 @@ const currentUserId = user?.id;
         {!loading && !error && filteredRequests.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredRequests.map((req) => {
-              // 💡 THE FIX: Standardized string comparison
               const isOwner = currentUserId?.toString() === (req.author?._id?.toString() || req.author?.toString());
 
               return (
@@ -192,7 +264,6 @@ const currentUserId = user?.id;
             <p className="text-gray-500 dark:text-gray-400">Try adjusting your filters.</p>
           </div>
         )}
-
       </main>
       <Footer />
     </div>

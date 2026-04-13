@@ -13,18 +13,25 @@ passport.use(new GoogleStrategy({
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: process.env.NODE_ENV === "production" 
     ? "https://helpnet-gw14.onrender.com/api/auth/google/callback" 
-    : "http://localhost:5000/api/auth/google/callback"
+    : "http://localhost:5000/api/auth/google/callback",
+  passReqToCallback: true // 🚨 1. YOU MUST ADD THIS LINE
 },
-async (accessToken, refreshToken, profile, done) => {
+// 🚨 2. ADD 'req' AS THE FIRST PARAMETER HERE
+async (req, accessToken, refreshToken, profile, done) => {
   try {
+    // 🚨 3. GRAB THE ROLE FROM THE GOOGLE STATE
+    const role = req.query.state || "user"; 
+
     let email = profile.emails[0].value.toLowerCase().trim();
     let user = await User.findOne({ email });
+    
     if (!user) {
       user = new User({
         fullName: profile.displayName,
         email: profile.emails[0].value,
         googleId: profile.id,
-        isVerified: true
+        isVerified: true,
+        role: role === "admin" ? "admin" : "user" // ✅ Now this works safely!
       });
       await user.save();
     } else if (!user.googleId) {
@@ -41,7 +48,7 @@ async (accessToken, refreshToken, profile, done) => {
 // ================= REGISTER =================
 router.post('/register', async (req, res) => {
   try {
-    const { fullName, email, password, location } = req.body;
+    const { fullName, email, password, location, role } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -56,16 +63,21 @@ router.post('/register', async (req, res) => {
       email:email.toLowerCase().trim(),
       password: hashedPassword,
       location,
-      isVerified: true
+      isVerified: true,
+      role: role === "admin" ? "admin" : "user"
     });
 
     await newUser.save();
 
-    const token = jwt.sign(
-      { id: newUser._id, apartmentId: newUser.apartmentId || null }, // ✅ INCLUDE
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+   const token = jwt.sign(
+  { 
+    id: newUser._id, 
+    apartmentId: newUser.apartmentId || null,
+    role: newUser.role   // ✅ FIX
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '7d' }
+);
 
     res.status(201).json({ 
       token, 
@@ -73,7 +85,8 @@ router.post('/register', async (req, res) => {
         id: newUser._id,
         fullName: newUser.fullName,
         email: newUser.email,
-        apartmentId: newUser.apartmentId || null
+        apartmentId: newUser.apartmentId || null,
+        role: newUser.role
       }
     });
 
@@ -100,20 +113,25 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user._id, apartmentId: user.apartmentId || null }, // ✅ INCLUDE
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+  { 
+    id: user._id, 
+    apartmentId: user.apartmentId || null,
+    role: user.role   // ✅ FIX
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '7d' }
+);
 
-    res.json({ 
-      token,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        apartmentId: user.apartmentId || null
-      }
-    });
+    res.json({
+  token,
+  user: {
+    id: user._id,
+    fullName: user.fullName,
+    email: user.email,
+    apartmentId: user.apartmentId,
+    role: user.role   // ✅ ADD THIS
+  }
+});
 
   } catch (error) {
     res.status(500).json({ message: "Server error during login" });
@@ -135,10 +153,14 @@ router.patch('/set-apartment', auth, async (req, res) => {
 
     // ✅ Generate NEW TOKEN with apartmentId
     const token = jwt.sign(
-      { id: user._id, apartmentId: user.apartmentId },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+  { 
+    id: user._id, 
+    apartmentId: user.apartmentId,
+    role: user.role   // ✅ FIX
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '7d' }
+);
 
     res.json({
       message: 'Apartment set successfully',
@@ -152,21 +174,46 @@ router.patch('/set-apartment', auth, async (req, res) => {
 });
 
 // ================= GOOGLE AUTH =================
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/google', (req, res, next) => {
+  const role = req.query.role || "user";
+
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: role   // ✅ PASS ROLE
+  })(req, res, next);
+});
 
 router.get('/google/callback',
   passport.authenticate('google', { session: false }),
   (req, res) => {
 
+    const loginRole = req.query.state || "user";
+
+    // ❌ BLOCK if trying admin but not admin
+    if (loginRole === "admin" && req.user.role !== "admin") {
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=not-admin`);
+    }
+
     const token = jwt.sign(
-      { id: req.user._id, apartmentId: req.user.apartmentId || null }, // ✅ INCLUDE
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+  { 
+    id: req.user._id, 
+    apartmentId: req.user.apartmentId || null,
+    role: req.user.role   // ✅ ADD THIS
+  },
+  process.env.JWT_SECRET,
+  { expiresIn: '7d' }
+);
 
-    const frontendURL = process.env.FRONTEND_URL || "https://help-net-chi.vercel.app";
+    const frontendURL = process.env.FRONTEND_URL || "http://localhost:5173";
 
-    res.redirect(`${frontendURL}/login-success?token=${token}`);
+    // ✅ redirect based on role
+    if (req.user.role === "admin") {
+      res.redirect(`${frontendURL}/admin?token=${token}`);
+    } else if (!req.user.apartmentId) {
+      res.redirect(`${frontendURL}/set-apartment?token=${token}`);
+    } else {
+      res.redirect(`${frontendURL}/dashboard?token=${token}`);
+    }
   }
 );
 

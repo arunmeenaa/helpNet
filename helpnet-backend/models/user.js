@@ -6,6 +6,12 @@ const UserSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+role: {
+  type: String,
+  enum: ["user", "admin"],
+  default: "user"
+},
+
 
   apartmentId: {
     type: String,
@@ -37,8 +43,12 @@ const UserSchema = new mongoose.Schema({
   isVerified: {
     type: Boolean,
     default: true,
-  }
+  },
 
+isEvicted: {
+    type: Boolean,
+    default: false
+  }
 }, { timestamps: true });
 
 // ✅ Index for fast filtering

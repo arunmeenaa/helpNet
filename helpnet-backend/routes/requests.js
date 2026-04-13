@@ -9,19 +9,21 @@ const mongoose = require('mongoose');
 // ==========================================
 router.get('/', auth, async (req, res) => {
   try {
-    if (!req.user.apartmentId) {
-      return res.status(400).json({ message: "Set apartment first" });
+    // 💡 THE FIX: Check the REAL database status, not just the token
+    const user = await mongoose.model('User').findById(req.user.id);
+    
+    if (!user || !user.apartmentId) {
+      return res.status(403).json({ message: "You are no longer a member of an apartment community." });
     }
 
     const requests = await Request.find({ 
-      apartmentId: req.user.apartmentId,
+      apartmentId: user.apartmentId, // Use the fresh ID from DB
       status: { $ne: 'resolved' } 
     })
     .populate('author', 'fullName')
     .sort({ createdAt: -1 });
 
     res.json(requests);
-
   } catch (err) {
     res.status(500).json({ message: 'Server Error' });
   }
@@ -32,11 +34,18 @@ router.get('/', auth, async (req, res) => {
 // ==========================================
 router.get('/me', auth, async (req, res) => {
   try {
+    // 💡 THE FIX: Verifying they haven't been evicted
+    const user = await mongoose.model('User').findById(req.user.id);
+    
+    if (!user || !user.apartmentId) {
+      // Sending 403 tells your Frontend Dashboard to show the "Join Community" screen
+      return res.status(403).json({ message: "Access denied. No apartment assigned." });
+    }
+
     const myRequests = await Request.find({ author: req.user.id })
       .sort({ createdAt: -1 });
 
     res.json(myRequests);
-
   } catch (err) {
     res.status(500).json({ message: 'Server Error' });
   }
@@ -76,17 +85,14 @@ router.post('/', auth, async (req, res) => {
   try {
     const { title, description, location, priority } = req.body;
 
-    // ✅ VALIDATION (THIS FIXES YOUR 500)
-    if (!title || !description || !location || !priority) {
-      return res.status(400).json({
-        message: "All fields are required"
-      });
+    // 💡 THE FIX: Prevent posting if evicted
+    const user = await mongoose.model('User').findById(req.user.id);
+    if (!user || !user.apartmentId) {
+      return res.status(403).json({ message: "You must be in an apartment to post requests." });
     }
 
-    if (!req.user.apartmentId) {
-      return res.status(400).json({
-        message: "Set apartment first"
-      });
+    if (!title || !description || !location || !priority) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
     const newRequest = new Request({
@@ -95,18 +101,16 @@ router.post('/', auth, async (req, res) => {
       location,
       priority,
       author: req.user.id,
-      apartmentId: req.user.apartmentId
+      apartmentId: user.apartmentId // Use fresh ID
     });
 
     const savedRequest = await newRequest.save();
-
     const populatedRequest = await savedRequest.populate('author', 'fullName');
-
     res.status(201).json(populatedRequest);
 
   } catch (err) {
-    console.error("CREATE REQUEST ERROR:", err.message); // 🔥 ADD THIS
-    res.status(500).json({ message: 'Server Error', error: err.message });
+    console.error("CREATE REQUEST ERROR:", err.message);
+    res.status(500).json({ message: 'Server Error' });
   }
 });
 
