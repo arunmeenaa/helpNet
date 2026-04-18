@@ -1,14 +1,15 @@
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom"; // Added useLocation, useNavigate
-import { useEffect } from "react"; // Added useEffect
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"; 
+import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import LoginSuccess from "./pages/LoginSuccess";
 import Home from "./pages/Home";
+import AdminProfile from "./pages/AdminProfile";
 import PostRequest from "./pages/PostRequest";
 import RequestDetails from "./pages/RequestDetails";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import OfferDetails from "./pages/OfferDetails";
-import SetApartment from "./pages/SetApartment"; 
+import SetApartment from "./pages/SetApartment";
 import About from "./pages/About";
 import ScrollToTop from "./components/ScrollToTop";
 import UserProfile from "./pages/UserProfile";
@@ -27,65 +28,66 @@ import CreateApartment from "./pages/CreateApartment";
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-useEffect(() => {
-  const params = new URLSearchParams(location.search);
-  const token = params.get("token");
 
-  if (token) {
-    localStorage.setItem("token", token);
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const userData = JSON.parse(window.atob(base64));
-      
-      localStorage.setItem("user", JSON.stringify(userData));
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
 
-      // ✅ FIX: Remove the token from URL without a full page reload
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // ✅ FIX: Tell the app the user changed without refreshing
-      window.dispatchEvent(new Event("local-storage-update"));
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
 
-      if (userData.role === "admin") navigate("/admin");
-      else navigate("/dashboard");
-    } catch (err) {
-      console.error("Token sync failed", err);
+    if (token) {
+      localStorage.setItem("token", token);
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const userData = JSON.parse(window.atob(base64));
+
+        localStorage.setItem("user", JSON.stringify(userData));
+
+        // ✅ FIX: Remove the token from URL without a full page reload
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname,
+        );
+
+        // ✅ FIX: Tell the app the user changed without refreshing
+        window.dispatchEvent(new Event("local-storage-update"));
+
+        if (userData.role === "admin") navigate("/admin");
+        else navigate("/dashboard");
+      } catch (err) {
+        console.error("Token sync failed", err);
+      }
     }
-  }
-}, [location, navigate]);
+  }, [location, navigate]);
 
   return (
-    <div>
-      <Toaster position="top-center" reverseOrder={false} />
+    
+      <>
       <ScrollToTop />
-
       <Routes>
-        <Route path="/admin-register" element={<AdminRegister />} />
+        {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/findHelp" element={<AvailableHelp />} />
-        <Route path="RequestsFeed" element={<RequestsFeed />} />
-        <Route path="/requests/:id" element={<RequestDetails />} />
-        <Route path="/choose-role" element={<ChooseRole />} />
+        <Route path="/admin-register" element={<AdminRegister />} />
         <Route path="/admin-login" element={<AdminLogin />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/choose-role" element={<ChooseRole />} />
         
-        {/* Protected Routes */}
-        <Route 
-          path="/user/:id" 
-          element={
-            <ProtectedRoute>
-              <UserProfile />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Help/Request Routes */}
+        <Route path="/findHelp" element={<AvailableHelp />} />
+        <Route path="/RequestsFeed" element={<RequestsFeed />} />
+        <Route path="/requests/:id" element={<RequestDetails />} />
+        <Route path="/offer-details/:id" element={<OfferDetails />} />
+
+        {/* Protected Admin Routes */}
         <Route
           path="/admin"
           element={
-            <ProtectedRoute adminOnly={true}>
-              <AdminDashboard />
-            </ProtectedRoute>
+            user?.role === "admin" ? <AdminDashboard /> : <Navigate to="/dashboard" />
           }
         />
         <Route
@@ -96,23 +98,25 @@ useEffect(() => {
             </ProtectedRoute>
           }
         />
-        <Route path="/set-apartment" element={<SetApartment />} />
         <Route
-          path="/dashboard"
+          path="/AdminProfile"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <AdminProfile />
             </ProtectedRoute>
           }
         />
-        
-        {/* ... Rest of your routes ... */}
-        <Route path="/post" element={<ProtectedRoute><PostRequest /></ProtectedRoute>} />
+
+        {/* Protected User Routes */}
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/set-apartment" element={<SetApartment />} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+        <Route path="/post" element={<ProtectedRoute><PostRequest /></ProtectedRoute>} />
         <Route path="/OfferHelp" element={<ProtectedRoute><OfferHelp /></ProtectedRoute>} />
-        <Route path="/offer-details/:id" element={<ProtectedRoute><OfferDetails /></ProtectedRoute>} />
       </Routes>
-    </div>
+      <Toaster position="top-center" reverseOrder={false} />
+    </>
   );
 }
 

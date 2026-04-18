@@ -19,6 +19,7 @@ export default function RequestsFeed() {
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
   const apartmentId = storedUser.apartmentId;
 
+  const isAdmin = storedUser?.role === "admin";
   // 💡 FIXED: Define currentUserId here so it is available to the entire component
   const decodedToken = token ? jwtDecode(token) : null;
   const currentUserId = decodedToken?.id || decodedToken?.sub;
@@ -242,18 +243,22 @@ export default function RequestsFeed() {
                   </div>
 
                   {isOwner ? (
-                    <Link to="/dashboard">
-                      <button className="w-full py-3.5 rounded-xl font-bold text-base bg-blue-600 text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-all">
-                        Manage My Request
-                      </button>
-                    </Link>
-                  ) : (
-                    <Link to={`/request-details/${req._id}`}>
-                      <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/20 hover:scale-[1.02] transition-all">
-                        I Can Help
-                      </button>
-                    </Link>
-                  )}
+  <Link to="/dashboard">
+    <button className="w-full py-3.5 rounded-xl font-bold text-base bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-all">
+      Manage My Request
+    </button>
+  </Link>
+) : !isAdmin ? ( // 👈 ONLY show "I Can Help" if NOT an admin
+  <Link to={`/request-details/${req._id}`}>
+    <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg hover:scale-[1.02] transition-all">
+      I Can Help
+    </button>
+  </Link>
+) : (
+  <div className="w-full py-3.5 rounded-xl text-center text-gray-400 text-sm font-medium border border-dashed">
+    View Only
+  </div>
+)}
                 </div>
               );
             })}
