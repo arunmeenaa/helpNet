@@ -3,7 +3,16 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from "../api";
-import { User, Mail, Shield, LogOut, KeyRound, Building, ChevronRight, Search } from "lucide-react";
+import {
+  User,
+  Mail,
+  Shield,
+  LogOut,
+  KeyRound,
+  Building,
+  ChevronRight,
+  Search,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function AdminProfile() {
@@ -23,7 +32,7 @@ export default function AdminProfile() {
     const token = localStorage.getItem("token"); // 💡 Fix: Retrieve token here
     try {
       const res = await fetch(`${API_URL}/api/admin/members`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
@@ -39,9 +48,10 @@ export default function AdminProfile() {
   }, []);
 
   const filteredMembers = useMemo(() => {
-    return members.filter(member => 
-      member.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      member.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    return members.filter(
+      (member) =>
+        member.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        member.email?.toLowerCase().includes(searchQuery.toLowerCase()),
     );
   }, [members, searchQuery]);
   return (
@@ -68,15 +78,25 @@ export default function AdminProfile() {
               </span>
 
               <div className="mt-8 space-y-4">
-                <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                  <Mail size={18} />{" "}
-                  <span className="text-sm">{user.email}</span>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    Email
+                  </label>
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl">
+                    <Mail size={18} />
+                    <span className="text-sm truncate">{user.email}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-                  <Building size={18} />{" "}
-                  <span className="text-sm uppercase">
-                    {user.apartmentId || "Not Set"}
-                  </span>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                    Apartment ID
+                  </label>
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl">
+                    <Building size={18} />
+                    <span className="text-sm uppercase font-mono tracking-wider">
+                      {user.apartmentId || "Not Set"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

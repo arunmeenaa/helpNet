@@ -1,4 +1,12 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"; 
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import PublicOnlyRoute from "./components/PublicOnlyRoute";
 import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 import LoginSuccess from "./pages/LoginSuccess";
@@ -64,19 +72,26 @@ function App() {
   }, [location, navigate]);
 
   return (
-    
-      <>
+    <>
       <ScrollToTop />
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/admin-register" element={<AdminRegister />} />
-        <Route path="/admin-login" element={<AdminLogin />} />
+        <Route 
+    path="/" 
+    element={
+      <PublicOnlyRoute>
+        <Home />
+      </PublicOnlyRoute>
+    } 
+  />
         <Route path="/about" element={<About />} />
-        <Route path="/choose-role" element={<ChooseRole />} />
-        
+
+        <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+        <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+        <Route path="/admin-login" element={<PublicOnlyRoute><AdminLogin /></PublicOnlyRoute>} />
+        <Route path="/admin-register" element={<PublicOnlyRoute><AdminRegister /></PublicOnlyRoute>} />
+        <Route path="/choose-role" element={<PublicOnlyRoute><ChooseRole /></PublicOnlyRoute>} />
+
         {/* Help/Request Routes */}
         <Route path="/findHelp" element={<AvailableHelp />} />
         <Route path="/RequestsFeed" element={<RequestsFeed />} />
@@ -87,7 +102,11 @@ function App() {
         <Route
           path="/admin"
           element={
-            user?.role === "admin" ? <AdminDashboard /> : <Navigate to="/dashboard" />
+            user?.role === "admin" ? (
+              <AdminDashboard />
+            ) : (
+              <Navigate to="/dashboard" />
+            )
           }
         />
         <Route
@@ -101,19 +120,54 @@ function App() {
         <Route
           path="/AdminProfile"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute adminOnly={true}>
               <AdminProfile />
             </ProtectedRoute>
           }
         />
 
         {/* Protected User Routes */}
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/set-apartment" element={<SetApartment />} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-        <Route path="/post" element={<ProtectedRoute><PostRequest /></ProtectedRoute>} />
-        <Route path="/OfferHelp" element={<ProtectedRoute><OfferHelp /></ProtectedRoute>} />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/user/:id"
+          element={
+            <ProtectedRoute>
+              <UserProfile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/post"
+          element={
+            <ProtectedRoute adminOnly={false}>
+              <PostRequest />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/OfferHelp"
+          element={
+            <ProtectedRoute>
+              <OfferHelp />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
       <Toaster position="top-center" reverseOrder={false} />
     </>

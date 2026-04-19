@@ -122,13 +122,14 @@ export default function Navbar() {
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-6">
           <div className="flex items-center gap-6 text-sm font-semibold text-gray-600 dark:text-gray-300">
-            <Link to="/" className="hover:text-blue-600 transition-colors">
-              Home
-            </Link>
+            {!user && (
+              <Link to="/" className="hover:text-blue-600 transition-colors">
+                Home
+              </Link>
+            )}
 
-            {/* 🔒 Restricted Links */}
-            {!isHomeless && (
-              <>
+            
+              
                 <Link
                   to="/RequestsFeed"
                   className="hover:text-blue-600 transition-colors"
@@ -141,8 +142,8 @@ export default function Navbar() {
                 >
                   Available Helps
                 </Link>
-              </>
-            )}
+              
+            
           </div>
 
           <div className="flex items-center gap-4 border-l border-gray-200 dark:border-gray-800 pl-6">
@@ -202,11 +203,11 @@ export default function Navbar() {
                         label="Dashboard"
                         badge={isAdmin ? 0 : unreadCount} // Hide unread badge for admins
                       />
-                      <DropdownItem 
-       to={profilePath} 
-       icon={<User size={18} />} 
-       label="My Profile" 
-    />
+                      <DropdownItem
+                        to={profilePath}
+                        icon={<User size={18} />}
+                        label="My Profile"
+                      />
                       {!isHomeless && !isAdmin && (
                         <>
                           <div className="my-2 px-2 space-y-1">
@@ -290,8 +291,9 @@ export default function Navbar() {
                 </div>
               </div>
             )}
-            <MobileLink to="/" icon={<Home size={18} />} label="Home" />
-            {!isHomeless && (
+{!user && (
+    <MobileLink to="/" icon={<Home size={18} />} label="Home" />
+  )}            {!isHomeless && (
               <>
                 <MobileLink
                   to="/RequestsFeed"
@@ -315,7 +317,11 @@ export default function Navbar() {
                   label="Dashboard"
                   badge={isAdmin ? 0 : unreadCount}
                 />
-                <MobileLink to={profilePath} icon={<User size={18} />} label="My Profile" />
+                <MobileLink
+                  to={profilePath}
+                  icon={<User size={18} />}
+                  label="My Profile"
+                />
                 {!isHomeless && !isAdmin && (
                   <>
                     <div className="mt-3 grid grid-cols-1 gap-2">

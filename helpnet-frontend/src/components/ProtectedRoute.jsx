@@ -1,4 +1,3 @@
-import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
@@ -12,30 +11,35 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
 
   try {
     const decoded = jwtDecode(token);
-    // 💡 Get the fresh user data from localStorage where 'apartmentId' might have been set to null
+    const userRole = decoded.role; // Assuming your JWT payload includes 'role'
     const localUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-    // 👑 ADMIN ACCESS
-    if (decoded.role === "admin") {
-      return children;
+    // 1. ADMIN PROTECTION
+    // If the route is adminOnly, but the user is NOT an admin, block them.
+    if (adminOnly && userRole !== "admin") {
+      return <Navigate to="/dashboard" replace />;
     }
 
-    // 👤 USER LOGIC
-    // 1. If they have no apartment and aren't already on the Dashboard or SetApartment
-    if (!localUser.apartmentId) {
+    // 2. RESIDENT PROTECTION (The "No lurkers" rule)
+    // If the route is NOT adminOnly, but the user IS an admin, block them.
+    if (!adminOnly && userRole === "admin") {
+      return <Navigate to="/admin" replace />;
+    }
+
+    // 3. APARTMENT LOGIC (Residents only)
+    // If user is a resident and missing an apartment, force them to Dashboard/SetApartment
+    if (userRole !== "admin" && !localUser.apartmentId) {
       const allowedPaths = ["/dashboard", "/set-apartment"];
-      
       if (!allowedPaths.includes(location.pathname)) {
-        // Force them to the dashboard so they see the "Join Community" / "Evicted" screen
         return <Navigate to="/dashboard" replace />;
       }
     }
 
+    // If all checks pass
     return children;
 
   } catch (err) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    localStorage.clear();
     return <Navigate to="/login" replace />;
   }
 }
