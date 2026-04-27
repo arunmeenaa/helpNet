@@ -1,29 +1,26 @@
 const express = require("express");
 const router = express.Router();
-const auth = require("../middleware/auth");
+// 💡 Correct imports: Import only once!
+const { auth, isAdmin } = require("../middleware/auth"); 
 const Apartment = require("../models/Apartment");
-const User = require("../models/user");
+const User = require("../models/user"); 
+const JoinRequest = require("../models/JoinRequest");
 
-// ✅ Create apartment (only once)
-// ✅ Create apartment (only once)
+// ✅ Create apartment
 router.post('/create-apartment', auth, async (req, res) => {
   try {
-    // 💡 Removed adminKey from req.body
     const { name, apartmentId } = req.body;
-
     const exists = await Apartment.findOne({ apartmentId });
-    if (exists) {
-      return res.status(400).json({ message: "Apartment already exists" });
-    }
+    if (exists) return res.status(400).json({ message: "Apartment already exists" });
 
     const newApartment = new Apartment({
       name,
       apartmentId,
-      owner: req.user.id // Uses the ID from your auth middleware
+      owner: req.user.id
     });
 
     await newApartment.save();
-
+    
     // Update the user
     const user = await User.findById(req.user.id);
     user.role = "admin";
@@ -31,99 +28,132 @@ router.post('/create-apartment', auth, async (req, res) => {
     await user.save();
 
     res.json({ message: "Apartment created 👑", apartmentId });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server Error" });
   }
 });
-// ✅ Get a specific user's profile (for Admin viewing)
-router.get("/user/:id", auth, async (req, res) => {
+
+// ✅ Get user profile (Admin only)
+router.get("/user/:id", auth, isAdmin, async (req, res) => {
   try {
-    const admin = await User.findById(req.user.id);
-
-    // Make sure the person requesting is actually an admin
-    if (admin.role !== "admin") {
-      return res.status(403).json({ message: "Access denied. Admins only." });
-    }
-
-    // Find the user by the ID passed in the URL
     const targetUser = await User.findById(req.params.id).select("-password");
+    if (!targetUser) return res.status(404).json({ message: "User not found" });
 
-    if (!targetUser) {
-      return res.status(404).json({ message: "User not found" });
+    // Security check: Must belong to admin's apartment
+    if (targetUser.apartmentId !== req.user.apartmentId) {
+      return res.status(403).json({ message: "Access denied." });
     }
-
-    // Optional security check: Make sure the target user belongs to the same apartment
-    if (targetUser.apartmentId !== admin.apartmentId) {
-      return res.status(403).json({ message: "User does not belong to your apartment." });
-    }
-
     res.json(targetUser);
-
   } catch (err) {
-    console.error("Error fetching user profile:", err);
     res.status(500).json({ message: "Server Error" });
   }
 });
 
-// ✅ Get all members of apartment
-router.get("/members", auth, async (req, res) => {
+// ✅ Get members (Admin only)
+router.get("/members", auth, isAdmin, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-
-    if (user.role !== "admin") {
-      return res.status(403).json({ message: "Not admin" });
-    }
-
-    const members = await User.find({
-      apartmentId: user.apartmentId
-    }).select("fullName email createdAt");
-
+    const members = await User.find({ apartmentId: req.user.apartmentId })
+                              .select("fullName email createdAt");
     res.json(members);
-
   } catch (err) {
     res.status(500).json({ message: "Server Error" });
   }
 });
-// ✅ Remove a resident from the apartment
-// ✅ Remove a resident from the apartment (KEEPING their account)
-router.delete("/remove-user/:id", auth, async (req, res) => {
+
+// ✅ Remove user
+// ✅ Remove user
+router.delete("/remove-user/:id", auth, isAdmin, async (req, res) => {
   try {
-    const admin = await User.findById(req.user.id);
-
-    // 1. Verify the requester is an admin
-    if (admin.role !== "admin") {
-      return res.status(403).json({ message: "Access denied. Admins only." });
-    }
-
-    // 2. Prevent the admin from removing themselves
-    if (req.params.id === admin._id.toString()) {
-      return res.status(400).json({ message: "You cannot remove yourself." });
-    }
-
     const targetUser = await User.findById(req.params.id);
+    if (!targetUser) return res.status(404).json({ message: "User not found." });
+    if (targetUser.apartmentId !== req.user.apartmentId) return res.status(403).json({ message: "Access denied." });
 
-    if (!targetUser) {
-      return res.status(404).json({ message: "User not found." });
-    }
-
-    // 3. Security check: Only allow removal if they are in your apartment
-    if (targetUser.apartmentId !== admin.apartmentId) {
-      return res.status(403).json({ message: "This user is not in your apartment." });
-    }
-
-    // 4. THE FIX: Remove the apartment link and set the eviction flag
-    targetUser.apartmentId = null; 
-    targetUser.isEvicted = true; // This lets us show them the "You were removed" message
-    
+    targetUser.apartmentId = null;
+    targetUser.isEvicted = true;
     await targetUser.save();
 
-    res.json({ message: "User successfully removed from the apartment community." });
+    // 1. Get the 'io' instance
+    const io = req.app.get('io');
+    
+    // 2. Emit the event to the user who was removed
+    console.log("Attempting to emit user_removed to room:", targetUser._id.toString());
+    // We use targetUser._id.toString() to ensure it matches the room ID
+    if (io) {
+      io.to(targetUser._id.toString()).emit("user_removed", { 
+        message: "You have been removed from the community." 
+      });
+    }
 
+    res.json({ message: "User removed." });
   } catch (err) {
-    console.error("Error removing user:", err);
     res.status(500).json({ message: "Server Error" });
+  }
+});
+
+// ✅ Request to join (Users) - Note: auth only, not isAdmin
+router.post('/join-requests', auth, async (req, res) => {
+  try {
+    const { apartmentId } = req.body;
+    
+    // 1. Check for existing
+    const existing = await JoinRequest.findOne({ userId: req.user.id, status: 'pending' });
+    if (existing) return res.status(400).json({ message: "Request already pending." });
+
+    // 2. Create and Save the request
+    const newRequest = new JoinRequest({ userId: req.user.id, apartmentId });
+    await newRequest.save(); // Now 'newRequest' is a saved document with an _id
+
+    // 3. Emit the event using the now-saved document
+    const io = req.app.get('io');
+    io.to(`admin_${apartmentId}`).emit("new_join_request", { 
+      message: "New join request received!",
+      request: newRequest 
+    });
+
+    res.status(201).json({ message: "Request submitted." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ✅ Get pending requests (Admin only)
+router.get('/join-requests', auth, isAdmin, async (req, res) => {
+  try {
+    const requests = await JoinRequest.find({ 
+      apartmentId: req.user.apartmentId, 
+      status: 'pending' 
+    }).populate('userId', 'fullName email');
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ✅ Approve user (Admin only)
+// ✅ Approve user (Admin only)
+router.post('/approve-join', auth, isAdmin, async (req, res) => {
+  try {
+    const { requestId, userId } = req.body;
+    
+    // 1. Update Database
+    await User.findByIdAndUpdate(userId, { apartmentId: req.user.apartmentId });
+    await JoinRequest.findByIdAndUpdate(requestId, { status: 'approved' });
+
+    // 2. Get the 'io' instance we attached to the app
+    const io = req.app.get('io');
+    
+    // 3. Emit the event
+    if (io) {
+      io.to(userId).emit("approval_confirmed", { 
+        message: "You have been approved!",
+        apartmentId: req.user.apartmentId 
+      });
+    }
+
+    res.json({ message: "User approved successfully." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

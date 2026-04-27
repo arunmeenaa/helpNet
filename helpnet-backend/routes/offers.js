@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Offer = require('../models/Offer');
-const auth = require('../middleware/auth');
+const {auth} = require('../middleware/auth');
 const mongoose = require('mongoose');
 
 // ==========================================

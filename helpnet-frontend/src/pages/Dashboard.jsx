@@ -4,7 +4,7 @@ import Footer from "../components/Footer";
 import API_URL from "../api";
 import { toast } from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
-import { CheckCircle, RotateCcw, Edit3, Trash2, Send, Building, AlertTriangle } from "lucide-react"; // Added Building, AlertTriangle
+import { CheckCircle, RotateCcw, Edit3, Trash2, Send, Building, AlertTriangle } from "lucide-react"; 
 import { io } from "socket.io-client";
 import { jwtDecode } from "jwt-decode";
 
@@ -14,17 +14,13 @@ export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-  
-  // 💡 Parse user from both Token and LocalStorage to catch the 'isEvicted' flag
+
+  // Parse user from Token
   const user = token ? jwtDecode(token) : null;
   const localStorageUser = JSON.parse(localStorage.getItem("user") || "{}");
   const isEvicted = localStorageUser.isEvicted || false;
   const apartmentIdFromStorage = localStorageUser.apartmentId;
-  // ==========================================
-  // 🚨 GATEKEEPER: IF USER HAS NO APARTMENT
-  // ==========================================
-  
-
+const [currentUser, setCurrentUser] = useState(null);
   const chatContainerRef = useRef(null);
 
   // --- States ---
@@ -32,19 +28,19 @@ export default function Dashboard() {
   const [myPosts, setMyPosts] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newApartmentId, setNewApartmentId] = useState(""); // 💡 Added for Join Form
+  const [newApartmentId, setNewApartmentId] = useState(""); 
+  const [hasPendingRequest, setHasPendingRequest] = useState(false); // 💡 State for approval workflow
 
-  // Chat States
+  // Chat/Post Action States
   const [conversation, setConversation] = useState([]);
   const [loadingChat, setLoadingChat] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyContent, setReplyContent] = useState("");
-
-  // Post Action States
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [editData, setEditData] = useState({ title: "", description: "" });
 
+  const hasApartment = currentUser?.apartmentId || localStorageUser?.apartmentId;
   // URL Tab Checker
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -54,113 +50,121 @@ export default function Dashboard() {
     else if (tab === "requests") setActiveTab("requests");
   }, [location.search]);
 
-  const replyingToRef = useRef(replyingTo);
+  // --- Socket & Data Fetching ---
   useEffect(() => {
-    replyingToRef.current = replyingTo;
-  }, [replyingTo]);
+  if (user?.id) socket.emit("join_room", user.id);
 
-  // --- REAL-TIME SOCKET CONNECTION ---
-  useEffect(() => {
-    if (user?.id) {
-      socket.emit("join_room", user.id);
-    }
-    const handleReceiveMessage = (newMsg) => {
-      const senderId = (newMsg.sender?._id || newMsg.sender)?.toString();
-      setMessages((prev) => [newMsg, ...prev]);
-      if (replyingToRef.current === senderId) {
-        setConversation((prev) => [...prev, newMsg]);
-      } else {
-        toast(`New message from ${newMsg.sender?.fullName || "someone"}!`);
-      }
-    };
-    socket.on("receive_message", handleReceiveMessage);
-    return () => socket.off("receive_message", handleReceiveMessage);
-  }, [user?.id]);
-
-  // --- Fetching Data ---
- // --- Fetching Data ---
-  // --- Fetching Data ---
-useEffect(() => {
-  const fetchDashboardData = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return navigate("/login");
-
-    // 💡 1. STOP if user already has no apartment in LocalStorage
-    // This prevents broken requests from even firing
-    if (!apartmentIdFromStorage) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const [reqRes, offerRes, msgRes] = await Promise.all([
-        fetch(`${API_URL}/api/requests/me`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/api/offers/me`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_URL}/api/messages/inbox`, { headers: { Authorization: `Bearer ${token}` } }),
-      ]);
-
-      // 💡 2. HANDLE EVICTION (403)
-      if (reqRes.status === 403 || offerRes.status === 403) {
-        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-        const updatedUser = { ...storedUser, apartmentId: null, isEvicted: true };
-        
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        
-        // Notify Navbar to stop its own background requests
-        window.dispatchEvent(new Event("local-storage-update"));
-        
-        toast.error("You are no longer part of this community.");
-        setLoading(false);
-        return; 
-      }
-
-      if (reqRes.ok && offerRes.ok && msgRes.ok) {
-        const requests = await reqRes.json();
-        const offers = await offerRes.json();
-        const messagesData = await msgRes.json();
-
-        setMyPosts([
-          ...requests.map(r => ({ ...r, postType: "requests", author: r.author?._id || r.author })),
-          ...offers.map(o => ({ ...o, postType: "offers", author: o.author?._id || o.author }))
-        ]);
-        setMessages(Array.isArray(messagesData) ? messagesData : []);
-      }
-    } catch (err) {
-      console.error("Dashboard Sync Error:", err);
-    } finally {
-      setLoading(false);
-    }
+  // 1. Define handlers separately
+  const handleReceiveMessage = (newMsg) => {
+    setMessages((prev) => [newMsg, ...prev]);
   };
 
-  fetchDashboardData();
-}, [navigate, token, apartmentIdFromStorage]); // apartmentIdFromStorage is a dependency
+  const handleApproval = (data) => {
+    toast.success("Admin approved your request!");
+    // Update local storage
+    const updatedUser = { ...localStorageUser, apartmentId: data.apartmentId };
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+    // Update state to trigger re-render
+    setCurrentUser(updatedUser);
+  };
 
-  // --- Join Apartment Action ---
+  const handleUserRemoved = (data) => {
+    
+    toast.error("You have been removed from the apartment.");
+    const storedUser = JSON.parse(localStorage.getItem("user"));
+
+    const updatedUser = { ...storedUser, apartmentId: null };
+  localStorage.setItem("user", JSON.stringify(updatedUser));
+    window.dispatchEvent(new Event("local-storage-update"));
+   // window.location.reload();
+  };
+
+  // 2. Attach listeners
+  socket.on("receive_message", handleReceiveMessage);
+  socket.on("approval_confirmed", handleApproval);
+  socket.on("user_removed", handleUserRemoved);
+
+  // 3. Cleanup listeners (Crucial to prevent duplicate events)
+  return () => {
+    socket.off("receive_message", handleReceiveMessage);
+    socket.off("approval_confirmed", handleApproval);
+    socket.off("user_removed", handleUserRemoved);
+  };
+}, [user?.id, localStorageUser]); // Added localStorageUser as a dependency just in case
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!token || !apartmentIdFromStorage) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const [reqRes, offerRes, msgRes] = await Promise.all([
+          fetch(`${API_URL}/api/requests/me`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/offers/me`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${API_URL}/api/messages/inbox`, { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+
+        if (reqRes.status === 403 || offerRes.status === 403) {
+          const updatedUser = { ...localStorageUser, apartmentId: null, isEvicted: true };
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          window.dispatchEvent(new Event("local-storage-update"));
+          toast.error("You are no longer part of this community.");
+          setLoading(false);
+          return;
+        }
+
+        if (reqRes.ok && offerRes.ok && msgRes.ok) {
+          const requests = await reqRes.json();
+          const offers = await offerRes.json();
+          const messagesData = await msgRes.json();
+          setMyPosts([
+            ...requests.map(r => ({ ...r, postType: "requests", author: r.author?._id || r.author })),
+            ...offers.map(o => ({ ...o, postType: "offers", author: o.author?._id || o.author }))
+          ]);
+          setMessages(Array.isArray(messagesData) ? messagesData : []);
+        }
+      } catch (err) {
+        console.error("Sync Error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, [token, apartmentIdFromStorage]);
+
+  useEffect(() => {
+  const fetchFreshUser = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setCurrentUser(data); // This has the UPDATED apartmentId
+    } catch (err) {
+      console.error("Failed to fetch fresh user:", err);
+    }
+  };
+  
+  if (token) fetchFreshUser();
+}, [token]);
+
+  // --- Join Apartment Request Action ---
   const handleJoinApartment = async (e) => {
     e.preventDefault();
-    if (!newApartmentId.trim()) return;
     setLoading(true);
-
     try {
-      const res = await fetch(`${API_URL}/api/auth/set-apartment`, {
-        method: "PATCH",
+      const res = await fetch(`${API_URL}/api/admin/join-requests`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ apartmentId: newApartmentId }),
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
-      // 💡 Update local storage and reset the eviction flag
-      const updatedUser = { ...localStorageUser, apartmentId: data.apartmentId, isEvicted: false };
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      localStorage.setItem("token", data.token);
-
-      toast.success("Welcome back to a community! 🎉");
-      window.location.reload(); 
+      if (!res.ok) throw new Error("Request failed");
+      toast.success("Request sent to Admin! Wait for approval.");
+      setHasPendingRequest(true); // 💡 Triggers the success UI
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -168,76 +172,50 @@ useEffect(() => {
     }
   };
 
- // ==========================================
-  // 🚨 GATEKEEPER: IF USER HAS NO APARTMENT
   // ==========================================
-  if (!apartmentIdFromStorage) {
+  // 🚨 GATEKEEPER UI
+  // ==========================================
+  if (!hasApartment) {
     const isAdmin = localStorageUser.role === "admin";
-
     return (
       <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
         <Navbar />
-        <main className="flex-grow flex items-center justify-center px-4 py-12 relative overflow-hidden">
-          
-          {/* Ambient Background Glows */}
-          <div className={`absolute top-1/4 left-1/4 w-64 h-64 rounded-full blur-[120px] pointer-events-none ${isAdmin ? 'bg-purple-500/10' : 'bg-blue-500/10'}`} />
-          <div className={`absolute bottom-1/4 right-1/4 w-64 h-64 rounded-full blur-[120px] pointer-events-none ${isAdmin ? 'bg-indigo-500/10' : 'bg-cyan-500/10'}`} />
-
-          <div className="max-w-md w-full relative group">
-            {/* Soft Outer Glow */}
-            <div className={`absolute -inset-1 rounded-[2.6rem] blur opacity-20 transition duration-1000 ${isAdmin ? 'bg-gradient-to-r from-purple-600 to-indigo-500' : 'bg-gradient-to-r from-blue-600 to-cyan-500'}`}></div>
+        <main className="flex-grow flex items-center justify-center px-4 py-12">
+          <div className="max-w-md w-full relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-8 md:p-10 border border-white/20 dark:border-gray-800/50 text-center">
             
-            <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-8 md:p-10 border border-white/20 dark:border-gray-800/50 text-center animate-in fade-in zoom-in duration-500">
-              
-              {/* 🚨 Eviction Notice (Only show if previously evicted) */}
-              {isEvicted && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl flex items-start gap-3 text-left">
-                  <AlertTriangle className="text-red-500 shrink-0 mt-1" size={18} />
-                  <p className="text-xs text-red-600 dark:text-red-300 leading-relaxed">
-                    You were removed from your previous community. Please {isAdmin ? "re-register your apartment" : "join a new one"}.
-                  </p>
+            {hasPendingRequest ? (
+              <div className="space-y-4 animate-in fade-in zoom-in duration-500">
+                <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle size={40} />
                 </div>
-              )}
-
-              {/* Dynamic Icon based on Role */}
-              <div className={`w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center shadow-lg transition-transform hover:rotate-6 ${isAdmin ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
-                {isAdmin ? <Building size={40} className="animate-pulse" /> : <Building size={40} />}
+                <h2 className="text-2xl font-black text-gray-900 dark:text-white">Request Sent!</h2>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  Your request is with the admin. Hang tight, they will approve it soon!
+                </p>
               </div>
-              
-              <h2 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-                {isAdmin ? "Set Up Apartment" : "Join a Community"}
-              </h2>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mt-3 mb-8">
-                {isAdmin 
-                  ? "As an admin, you need to register an Apartment ID to start managing your community." 
-                  : "Please enter the Apartment ID provided by your building manager to reconnect."}
-              </p>
-
-              <form onSubmit={handleJoinApartment} className="space-y-4 text-left">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-gray-400 ml-1">
-                    {isAdmin ? "Create Apartment ID" : "Apartment ID"}
-                  </label>
+            ) : (
+              <>
+                <div className={`w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center shadow-lg ${isAdmin ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600'}`}>
+                  <Building size={40} />
+                </div>
+                <h2 className="text-2xl font-black text-gray-900 dark:text-white">
+                  {isAdmin ? "Set Up Apartment" : "First Join a Community"}
+                </h2>
+                <form onSubmit={handleJoinApartment} className="space-y-4 mt-6 text-left">
                   <input
                     type="text"
-                    placeholder={isAdmin ? "e.g. SKYLINE-7" : "e.g. SUNSET-402"}
-                    className={`w-full px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 transition-all uppercase font-mono tracking-widest dark:text-white ${isAdmin ? 'focus:ring-purple-500' : 'focus:ring-blue-500'}`}
+                    placeholder="Enter Apartment ID"
+                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 uppercase font-mono tracking-widest"
                     value={newApartmentId}
                     onChange={(e) => setNewApartmentId(e.target.value)}
                     required
                   />
-                </div>
-                
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={`w-full text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 shadow-lg ${isAdmin ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-600/20' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'}`}
-                >
-                  {loading ? "Processing..." : isAdmin ? "Register Apartment" : "Join Apartment"} 
-                  <Send size={18} />
-                </button>
-              </form>
-            </div>
+                  <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700">
+                    {loading ? "Processing..." : "Submit Request"}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </main>
         <Footer />
@@ -291,13 +269,15 @@ useEffect(() => {
               groupedMessages.length > 0 ? (
                 groupedMessages.map((msg) => {
                   const otherUser = msg.otherUser;
-                  const isChatOpen = replyingTo === (otherUser?._id || otherUser)?.toString();
+                  const isChatOpen =
+                    replyingTo === (otherUser?._id || otherUser)?.toString();
 
                   // Check if there are ANY unread messages in this specific conversation
                   const hasUnread = messages.some(
                     (m) =>
                       !m.isRead &&
-                      (m.sender?._id || m.sender)?.toString() === (otherUser?._id || otherUser)?.toString()
+                      (m.sender?._id || m.sender)?.toString() ===
+                        (otherUser?._id || otherUser)?.toString(),
                   );
 
                   return (
@@ -423,17 +403,18 @@ useEffect(() => {
                   filtered.map((post) => {
                     const isResolved =
                       post.status?.toLowerCase() === "resolved";
-                      const isOwner = post.author?.toString() === user?.id?.toString();
+                    const isOwner =
+                      post.author?.toString() === user?.id?.toString();
 
                     return (
                       <div
-  key={post._id}
-  className={`p-5 md:p-6 rounded-2xl border transition-all duration-300 
+                        key={post._id}
+                        className={`p-5 md:p-6 rounded-2xl border transition-all duration-300 
     ${isResolved ? "bg-gray-100 dark:bg-gray-800/40 opacity-60" : "bg-white dark:bg-gray-900 shadow-sm"}
     
   
   `}
->
+                      >
                         {editingPost === post._id ? (
                           <form
                             onSubmit={(e) =>

@@ -4,16 +4,20 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from "../api";
 import toast from "react-hot-toast";
+import { io } from "socket.io-client";
 import { 
   Users, Trash2, Search, Mail, ShieldCheck, 
   UserX, Building, ArrowRight, X, Eye 
 } from "lucide-react";
 
 export default function AdminDashboard() {
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
+  const socket = io(API_URL);
+
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
@@ -36,6 +40,34 @@ export default function AdminDashboard() {
     }
   };
 
+// 🔄 Join Admin Room & Listen for requests
+  useEffect(() => {
+    if (hasApartment) {
+      fetchMembers();
+      fetchPendingRequests();
+
+      // Join the admin room for this specific apartment
+      socket.emit("join_room", `admin_${currentUser.apartmentId}`);
+
+      // Listen for new requests
+      const handleNewRequest = (data) => {
+        toast("🔔 New join request received!", { icon: '✨' });
+        
+        // Update the state immediately
+        setPendingRequests((prev) => [data.request, ...prev]);
+      };
+
+      socket.on("new_join_request", handleNewRequest);
+
+      // Cleanup on unmount
+      return () => {
+        socket.off("new_join_request", handleNewRequest);
+      };
+    } else {
+      setLoading(false);
+    }
+  }, [hasApartment, currentUser.apartmentId]);
+  
   useEffect(() => {
     if (hasApartment) {
       fetchMembers();
@@ -70,7 +102,48 @@ export default function AdminDashboard() {
       toast.error(err.message, { id: deleteToast });
     }
   };
+const fetchPendingRequests = async () => {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/join-requests`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error("Failed to fetch");
+    const data = await res.json();
+    setPendingRequests(data);
+  } catch (err) {
+    console.error("Error fetching requests:", err);
+  }
+};
+useEffect(() => {
+  if (hasApartment) {
+    fetchMembers();
+    fetchPendingRequests(); // 💡 Add this here!
+  } else {
+    setLoading(false);
+  }
+}, [hasApartment]);
+// Approve Handler
+const handleApprove = async (requestId, userId) => {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/approve-join`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}` 
+      },
+      body: JSON.stringify({ requestId, userId })
+    });
 
+    if (!res.ok) throw new Error("Approval failed");
+    
+    toast.success("Resident approved!");
+    // Refresh both lists to move the user from Pending to Members
+    fetchPendingRequests(); 
+    fetchMembers();
+  } catch (err) {
+    toast.error(err.message);
+  }
+};
   // 🔍 Filter Logic
   const filteredMembers = useMemo(() => {
     return members.filter(user => 
@@ -173,7 +246,29 @@ export default function AdminDashboard() {
                 className="w-full pl-12 pr-4 py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-purple-500/50 outline-none text-gray-900 dark:text-white shadow-sm transition-all"
               />
             </div>
-
+{pendingRequests.length > 0 && (
+  <div className="mb-10 bg-amber-50 dark:bg-amber-900/10 p-6 rounded-3xl border border-amber-200 dark:border-amber-900/30">
+    <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+       Pending Join Requests ({pendingRequests.length})
+    </h2>
+    <div className="space-y-4">
+      {pendingRequests.map((req) => (
+        <div key={req._id} className="bg-white dark:bg-gray-900 p-4 rounded-xl flex justify-between items-center shadow-sm">
+          <div>
+            <p className="font-bold text-gray-900 dark:text-white">{req.userId?.fullName}</p>
+            <p className="text-sm text-gray-500">{req.userId?.email}</p>
+          </div>
+          <button 
+            onClick={() => handleApprove(req._id, req.userId?._id)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold text-sm hover:bg-green-700"
+          >
+            Approve
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
             {/* User List */}
             <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm overflow-hidden">
               {loading ? (

@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 
-module.exports = async function(req, res, next) {
+// 1. The Authentication Middleware
+const auth = async (req, res, next) => {
   const authHeader = req.header('Authorization');
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -12,8 +13,6 @@ module.exports = async function(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // ✅ Faster query
     const user = await User.findById(decoded.id).lean();
 
     if (!user) {
@@ -22,15 +21,26 @@ module.exports = async function(req, res, next) {
 
     req.user = {
       id: user._id,
-      role: user.role, // 👈 Add this
+      role: user.role,
       apartmentId: user.apartmentId?.trim() || null,
-      isEvicted: user.isEvicted // 👈 Add this so the frontend can show the red message
+      isEvicted: user.isEvicted 
     };
-    console.log("AUTH USER:", req.user);
 
     next();
-
   } catch (err) {
     res.status(401).json({ message: 'Token is not valid or has expired' });
   }
 };
+
+// 2. The Admin Check Middleware
+const isAdmin = (req, res, next) => {
+  // We rely on 'auth' running first to set req.user
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(403).json({ message: "Access denied. Admins only." });
+  }
+};
+
+// 3. Export BOTH functions so the route file can find them
+module.exports = { auth, isAdmin };

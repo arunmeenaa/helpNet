@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const passport = require('passport');
-const auth = require('../middleware/auth'); // ✅ ADD THIS
+const {auth} = require('../middleware/auth'); // ✅ ADD THIS
 
 const router = express.Router();
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -95,6 +95,15 @@ router.post('/register', async (req, res) => {
   }
 });
 
+router.get('/me', auth, async (req, res) => {
+  try {
+    // Fetch fresh data from DB, not from token
+    const user = await User.findById(req.user.id).select('-password');
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: "Server Error" });
+  }
+});
 // ================= LOGIN =================
 router.post('/login', async (req, res) => {
   try {
@@ -137,7 +146,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: "Server error during login" });
   }
 });
-
+console.log("DEBUG - Auth variable is:", auth);
 // ================= SET APARTMENT =================
 router.patch('/set-apartment', auth, async (req, res) => {
   try {

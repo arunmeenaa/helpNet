@@ -4,17 +4,20 @@ const cors = require('cors');
 const passport = require('passport');
 const http = require('http'); 
 const { Server } = require('socket.io'); 
-const profileRoutes = require('./routes/profile');
-const adminRoutes = require("./routes/admin");
-
 require('dotenv').config();
 
-const app = express();
+// 1. IMPORT ALL ROUTES AT THE TOP
+const authRoutes = require('./routes/auth');
+const adminRoutes = require("./routes/admin");
+const requestRoutes = require('./routes/requests');
+const offerRoutes = require('./routes/offers');
+const messageRoutes = require('./routes/messages');
+const profileRoutes = require('./routes/profile');
 
-// Create HTTP server to wrap the Express app
+const app = express();
 const server = http.createServer(app); 
 
-// Initialize Socket.io with CORS
+// 2. INITIALIZE SOCKET.IO
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
@@ -22,86 +25,41 @@ const io = new Server(server, {
     credentials: true
   }
 });
-
-// ==========================================
-// 🚨 1. CORS GOES FIRST! 
-// ==========================================
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:3000",
-  "https://help-net-chi.vercel.app"
-].filter(Boolean);
-
+app.set('io', io);
+// 3. MIDDLEWARE
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200
+  origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
+  credentials: true
 }));
-
-// ==========================================
-// 🚨 2. BODY PARSER GOES SECOND
-// ==========================================
 app.use(express.json());
 app.use(passport.initialize()); 
 
-// ==========================================
-// 🚨 3. ROUTES GO THIRD
-// ==========================================
-app.use("/api/admin", adminRoutes);
-
-// 💡 4. Socket.io Connection Logic
-io.on('connection', (socket) => {
-  console.log('⚡ User connected:', socket.id);
-
-  // User joins a private room named after their User ID
-  socket.on('join_room', (userId) => {
-    socket.join(userId);
-    console.log(`👤 User ${userId} joined their private room`);
-  });
-
-  // Listen for real-time messages
-  socket.on('send_message', (data) => {
-    socket.to(data.receiverId).emit('receive_message', data);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('👋 User disconnected');
-  });
-});
-
-// Import Routes
-const authRoutes = require('./routes/auth');
-const requestRoutes = require('./routes/requests');
-const offerRoutes = require('./routes/offers');
-const messageRoutes = require('./routes/messages');
-
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ Successfully connected to MongoDB!"))
-  .catch((err) => console.log("❌ MongoDB connection error:", err));
-
-// Routes
+// 4. MOUNT ROUTES (Organized)
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/profile', profileRoutes);
 
-const PORT = process.env.PORT || 5000;
-
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong on the server!' });
+// 5. SOCKET CONNECTION LOGIC
+io.on('connection', (socket) => {
+  console.log('⚡ User connected:', socket.id);
+  socket.on('join_room', (userId) => {
+    socket.join(userId);
+  });
+  socket.on('send_message', (data) => {
+    socket.to(data.receiverId).emit('receive_message', data);
+  });
 });
 
-// CRITICAL: Use server.listen instead of app.listen
+// 6. DATABASE CONNECTION
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ Successfully connected to MongoDB!"))
+  .catch((err) => console.log("❌ MongoDB connection error:", err));
+
+// 7. START SERVER
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Real-time Server running on port ${PORT}`);
 });

@@ -58,26 +58,29 @@ export default function Navbar() {
     }
   };
 
-  useEffect(() => {
-    const syncUser = () => {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          if (parsedUser?.apartmentId) {
-            fetchUnreadCount();
-          }
-        } catch (err) {
-          setUser(null);
+  // 1. DEFINE syncUser FIRST
+  const syncUser = () => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        if (parsedUser?.apartmentId) {
+          fetchUnreadCount();
         }
-      } else {
+      } catch (err) {
         setUser(null);
-        setUnreadCount(0);
       }
-    };
+    } else {
+      setUser(null);
+      setUnreadCount(0);
+    }
+  };
 
-    syncUser();
+  // 2. THEN CALL IT IN useEffect
+  useEffect(() => {
+    syncUser(); // Initial sync on mount
+
     window.addEventListener("storage", syncUser);
     window.addEventListener("local-storage-update", syncUser);
 
@@ -85,7 +88,7 @@ export default function Navbar() {
       window.removeEventListener("storage", syncUser);
       window.removeEventListener("local-storage-update", syncUser);
     };
-  }, [location]);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {

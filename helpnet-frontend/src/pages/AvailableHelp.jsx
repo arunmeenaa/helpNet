@@ -19,6 +19,8 @@ export default function AvailableHelp() {
 
   // 1. Grab the currently logged-in user
   const token = localStorage.getItem("token");
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const hasApartment = !!storedUser.apartmentId;
   const navigate = useNavigate();
   const currentUser = token ? jwtDecode(token) : null;
  if (!token) {
@@ -80,7 +82,30 @@ export default function AvailableHelp() {
     );
   
   }
+useEffect(() => {
+    // Only attempt to fetch if they have an apartment
+    if (!hasApartment) {
+      setLoading(false);
+      return;
+    }
 
+    const fetchOffers = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/offers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setOffers(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOffers();
+  }, [hasApartment, token]);
+  
   // Fetch live offers from MongoDB
   useEffect(() => {
   const fetchOffers = async () => {
