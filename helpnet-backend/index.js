@@ -37,7 +37,6 @@ app.use(passport.initialize());
 
 // 4. MOUNT ROUTES (Organized)
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/messages', messageRoutes);
