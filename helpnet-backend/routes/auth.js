@@ -146,7 +146,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: "Server error during login" });
   }
 });
-console.log("DEBUG - Auth variable is:", auth);
+//console.log("DEBUG - Auth variable is:", auth);
 // ================= SET APARTMENT =================
 router.patch('/set-apartment', auth, async (req, res) => {
   try {

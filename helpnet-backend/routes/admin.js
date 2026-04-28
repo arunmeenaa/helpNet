@@ -77,7 +77,7 @@ router.delete("/remove-user/:id", auth, isAdmin, async (req, res) => {
     const io = req.app.get('io');
     
     // 2. Emit the event to the user who was removed
-    console.log("Attempting to emit user_removed to room:", targetUser._id.toString());
+   // console.log("Attempting to emit user_removed to room:", targetUser._id.toString());
     // We use targetUser._id.toString() to ensure it matches the room ID
     if (io) {
       io.to(targetUser._id.toString()).emit("user_removed", { 
@@ -92,26 +92,45 @@ router.delete("/remove-user/:id", auth, isAdmin, async (req, res) => {
 });
 
 // ✅ Request to join (Users) - Note: auth only, not isAdmin
+// helpnet-backend/routes/admin.js
+
 router.post('/join-requests', auth, async (req, res) => {
   try {
     const { apartmentId } = req.body;
-    
-    // 1. Check for existing
     const existing = await JoinRequest.findOne({ userId: req.user.id, status: 'pending' });
     if (existing) return res.status(400).json({ message: "Request already pending." });
 
-    // 2. Create and Save the request
-    const newRequest = new JoinRequest({ userId: req.user.id, apartmentId });
-    await newRequest.save(); // Now 'newRequest' is a saved document with an _id
-
-    // 3. Emit the event using the now-saved document
+    // 1. Save to DB first
+    const newRequest = new JoinRequest({ userId: req.user.id, apartmentId ,status: 'pending'});
+    await newRequest.save();
+    //await newRequest.populate('userId', 'fullName email');
+    // 2. NOW emit the event to the admin
+    const populatedRequest = await JoinRequest.findById(newRequest._id).populate('userId', 'fullName email'); 
     const io = req.app.get('io');
+    const roomName = `admin_${apartmentId}`;
+    
+    console.log("Attempting to emit to room:", roomName); 
     io.to(`admin_${apartmentId}`).emit("new_join_request", { 
       message: "New join request received!",
-      request: newRequest 
+      request: populatedRequest // This now has userId.fullName inside it
+    });
+    
+    io.to(roomName).emit("new_join_request", { 
+      message: "New join request received!",
+      request: populatedRequest 
     });
 
     res.status(201).json({ message: "Request submitted." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.delete('/reject-join', auth, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    await JoinRequest.findByIdAndDelete(requestId);
+    res.json({ message: "Request rejected successfully." });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

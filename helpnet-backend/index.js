@@ -14,6 +14,7 @@ const offerRoutes = require('./routes/offers');
 const messageRoutes = require('./routes/messages');
 const profileRoutes = require('./routes/profile');
 
+
 const app = express();
 const server = http.createServer(app); 
 
@@ -41,10 +42,11 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 5. SOCKET CONNECTION LOGIC
 io.on('connection', (socket) => {
-  console.log('⚡ User connected:', socket.id);
+ // console.log('⚡ User connected:', socket.id);
   socket.on('join_room', (userId) => {
     socket.join(userId);
   });
