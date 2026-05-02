@@ -12,34 +12,34 @@
 
 ## 🛠️ Tech Stack
 
- - *Frontend*
+ - **Frontend:**
  React.js (Vite), 
  Socket.io-client (Real-time events), 
  Tailwind CSS (Styling), 
  React Router (Navigation)
 
- - *Backend*
+ - **Backend:**
  Node.js & Express, 
  Socket.io (WebSocket server), 
  Passport.js (Auth),
 
- - *Database*
+ - **Database:**
  MongoDB with Mongoose ODM
 
- - *Security*
+ - **Security:**
  Passport.js, JWT Authentication, bcrypt
 
 
 
 ## ⚙️ Installation & Setup
 
- 1. Clone the repository
+ 1. **Clone the repository**
  ```bash
  git clone https://github.com/arunmeenaa/helpNet.git
  cd help-net
  ```
 
- 2. *Backend Setup*
+ 2. **Backend Setup**
  - Navigate to the server directory: helpnet-backend
  - Install dependencies: npm install
  - Create a `.env` file in the root of the server folder:
@@ -48,10 +48,10 @@
  MONGO_URI=your_mongodb_connection_string
  JWT_SECRET=your_super_secret_key
  ```
-Start the server: `npm run dev`
+- Start the server: `npm run dev`
 
 
-3. *Frontend Setup*
+3. **Frontend Setup**
 - Navigate to the client directory: helpnet-frontend
 - Install dependencies: `npm install`
 - Create a `.env` file in the root of the client folder:
@@ -62,27 +62,17 @@ Start the server: `npm run dev`
 
 ## 📡 API Endpoints (Quick Reference)
 
-*Authentication*
+**Authentication**
 - POST /api/auth/register - Create a new account.
 - POST /api/auth/login - Authenticate user and get token.
 
-*Messages*
+**Messages**
 - GET /api/messages/unread-count - Get count of new messages.
 - POST /api/messages/send - Send a message (emits socket event).
 - GET /api/messages/conversation/:userId - Retrieve chat history with a specific neighbor.
 - PATCH /api/messages/:id/read - Mark a message as seen.
 
-*Community*
+**Community**
 - GET /api/requests - List all help requests in your apartment.
 - PATCH /api/requests/:id/status - Mark a request as resolved.
 - PATCH /api/offers/:id/status - Mark an offer as resolved.
-
-
-
-## 🔌WebSocket Events:
-
-Event Name                 Direction             Description
-join_room              Client -> Server      Joins a private room based on userId.
-receive_message        Server -> Client      Delivers a new message to the recipient's UI.
-approval_confirmed     Server -> Client      Notifies user they have been approved by an admin.
-user_removed           Server -> Client      Forces a logout/status update if an admin removes a user.
