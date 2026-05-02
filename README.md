@@ -40,7 +40,7 @@
  ```
 
  2. **Backend Setup**
- - Navigate to the server directory: `helpnet-backend`
+ - Navigate to the server directory: `cd helpnet-backend`
  - Install dependencies: npm install
  - Create a `.env` file in the root of the server folder:
  ```bash
@@ -52,7 +52,7 @@
 
 
 3. **Frontend Setup**
-- Navigate to the client directory: `helpnet-frontend`
+- Navigate to the client directory: `cd helpnet-frontend`
 - Install dependencies: `npm install`
 - Create a `.env` file in the root of the client folder:
 - [VITE_API_URL=http://localhost:5000]
