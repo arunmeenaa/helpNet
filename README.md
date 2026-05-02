@@ -1,4 +1,4 @@
-# HelpNet-
+# HelpNet
  Community Support PlatformHelpNet is a real-time, neighborhood-based platform designed to foster community support within apartment complexes. It allows residents to post requests for help, offer assistance, and communicate securely in real-time.🚀
 
 
@@ -12,21 +12,21 @@
 
 ## 🛠️ Tech Stack
 
- *Frontend*
- React.js (Vite)
- Socket.io-client (Real-time events)
- Tailwind CSS (Styling)
+ - *Frontend*
+ React.js (Vite), 
+ Socket.io-client (Real-time events), 
+ Tailwind CSS (Styling), 
  React Router (Navigation)
 
- *Backend*
- Node.js & Express
- Socket.io (WebSocket server)
- Passport.js (Auth)
+ - *Backend*
+ Node.js & Express, 
+ Socket.io (WebSocket server), 
+ Passport.js (Auth),
 
- *Database*
+ - *Database*
  MongoDB with Mongoose ODM
 
- *Security*
+ - *Security*
  Passport.js, JWT Authentication, bcrypt
 
 
