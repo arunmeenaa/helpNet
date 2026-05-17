@@ -7,6 +7,7 @@ const User = require("../models/user");
 const JoinRequest = require("../models/JoinRequest");
 const Request = require('../models/Request'); // 👈 Ensure this points to your file!
 const Offer = require('../models/Offer');
+
 // ✅ Create apartment
 router.post('/create-apartment', auth, async (req, res) => {
   try {
@@ -36,17 +37,23 @@ router.post('/create-apartment', auth, async (req, res) => {
 });
 
 // ✅ Get user profile (Admin only)
-router.get("/user/:id", auth, isAdmin, async (req, res) => {
+// backend/routes/admin.js
+
+
+router.get("/user/:id", auth, async (req, res) => {
   try {
     const targetUser = await User.findById(req.params.id).select("-password");
     if (!targetUser) return res.status(404).json({ message: "User not found" });
 
-    // Security check: Must belong to admin's apartment
+    // 🔒 SHARED SECURITY CHECK: 
+    // It blocks access if the person looking doesn't live in the same building complex
     if (targetUser.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({ message: "Access denied." });
+      return res.status(403).json({ message: "Access denied. Not a member of this community complex." });
     }
+    
     res.json(targetUser);
   } catch (err) {
+    console.error("Error in shared user profile lookup:", err);
     res.status(500).json({ message: "Server Error" });
   }
 });
@@ -54,10 +61,15 @@ router.get("/user/:id", auth, isAdmin, async (req, res) => {
 // ✅ Get members (Admin only)
 router.get("/members", auth, isAdmin, async (req, res) => {
   try {
-    const members = await User.find({ apartmentId: req.user.apartmentId })
-                              .select("fullName email createdAt");
+    // ✅ FIXED: Filter by apartmentId AND ensure the user's role is Not Equal ($ne) to "admin"
+    const members = await User.find({ 
+      apartmentId: req.user.apartmentId,
+      role: { $ne: "admin" } 
+    }).select("fullName email createdAt");
+    
     res.json(members);
   } catch (err) {
+    console.error("Error fetching members:", err);
     res.status(500).json({ message: "Server Error" });
   }
 });

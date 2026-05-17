@@ -1,7 +1,8 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
-export default function ProtectedRoute({ children, adminOnly = false }) {
+// 🌟 FIX: Added allowBoth flag option parameter defaulting to false
+export default function ProtectedRoute({ children, adminOnly = false, allowBoth = false }) {
   const token = localStorage.getItem("token");
   const location = useLocation();
 
@@ -20,9 +21,9 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
       return <Navigate to="/dashboard" replace />;
     }
 
-    // 2. RESIDENT PROTECTION (The "No lurkers" rule)
-    // If the route is NOT adminOnly, but the user IS an admin, block them.
-    if (!adminOnly && userRole === "admin") {
+    // 🌟 2. RESIDENT PROTECTION MODIFIED (Allows bypass if allowBoth is true)
+    // If the user IS an admin, but the page doesn't explicitly welcome both, redirect them to admin dashboard
+    if (!adminOnly && !allowBoth && userRole === "admin") {
       return <Navigate to="/admin" replace />;
     }
 

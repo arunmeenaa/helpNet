@@ -26,7 +26,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const socket = io(API_URL);
+  
   const [approvingId, setApprovingId] = useState(null);
   const [rejectingId, setRejectingId] = useState(null);
   const navigate = useNavigate();
@@ -87,10 +87,20 @@ export default function AdminDashboard() {
   }, [hasApartment, currentUser.apartmentId]);
 
   // 👁️ View Profile (Navigates to a member's profile page)
-  const viewProfile = (userId) => {
-    // You can change this route to match wherever your user profiles live
-    navigate(`/user/${userId}`);
-  };
+// Inside your member list management component (e.g., AdminDashboard.jsx)
+const viewProfile = (userId) => {
+  console.log("🎯 View Profile Clicked! Target User ID:", userId);
+  
+  if (!userId) {
+    console.error("❌ Mismatch: Target user identity object key field is missing or undefined.");
+    return;
+  }
+  
+  // Routes to the lowercase routing declaration path matching App.jsx parameters
+  navigate(`/user/${userId}`); 
+};
+
+
 
   // ❌ Remove user
   const removeUser = async (userId) => {
@@ -361,103 +371,100 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
-            {/* User List */}
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm overflow-hidden">
-              {loading ? (
-                <div className="p-10 text-center text-gray-500 flex flex-col items-center">
-                  <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
-                  Loading residents...
-                </div>
-              ) : members.length === 0 ? (
-                <div className="p-16 text-center flex flex-col items-center">
-                  <div className="w-20 h-20 bg-purple-50 dark:bg-purple-900/20 text-purple-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                    <Users size={40} />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                    Your Community is Empty
-                  </h3>
-                  <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
-                    You don't have any residents yet. Share your Apartment ID
-                    with your residents so they can join!
-                  </p>
-                  <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-3 rounded-xl font-mono text-sm text-gray-700 dark:text-gray-300 flex items-center gap-3">
-                    ID:{" "}
-                    <span className="font-bold text-purple-600 dark:text-purple-400">
-                      {currentUser.apartmentId}
+           {/* User List Container */}
+<div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-sm overflow-hidden">
+  {loading ? (
+    <div className="p-10 text-center text-gray-500 flex flex-col items-center">
+      <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
+      Loading residents...
+    </div>
+  ) : members.length === 0 ? (
+    <div className="p-16 text-center flex flex-col items-center">
+      <div className="w-20 h-20 bg-purple-50 dark:bg-purple-900/20 text-purple-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+        <Users size={40} />
+      </div>
+      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+        Your Community is Empty
+      </h3>
+      <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-6">
+        You don't have any residents yet. Share your Apartment ID
+        with your residents so they can join!
+      </p>
+      <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-6 py-3 rounded-xl font-mono text-sm text-gray-700 dark:text-gray-300 flex items-center gap-3">
+        ID:{" "}
+        <span className="font-bold text-purple-600 dark:text-purple-400">
+          {currentUser.apartmentId}
+        </span>
+      </div>
+    </div>
+  ) : filteredMembers.length === 0 ? (
+    <div className="p-16 text-center text-gray-500 flex flex-col items-center">
+      <UserX size={48} className="text-gray-300 dark:text-gray-700 mb-4" />
+      <p className="text-lg font-medium text-gray-900 dark:text-white">
+        No residents found
+      </p>
+      <p className="text-sm mt-1">
+        We couldn't find anyone matching "{searchQuery}"
+      </p>
+    </div>
+  ) : (
+    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+      {/* 🌟 FIX: Renamed 'user' to 'member' to prevent variable shadowing crashes */}
+      {filteredMembers.map((member) => {
+        const isMe = member._id === currentUser._id;
+
+        return (
+          <div
+            key={member._id}
+            className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-5 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors gap-4"
+          >
+            {/* Resident Info info */}
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-inner shrink-0">
+                {member.fullName?.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2 truncate">
+                  {member.fullName}
+                  {isMe && (
+                    <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      Owner (You)
                     </span>
-                  </div>
-                </div>
-              ) : filteredMembers.length === 0 ? (
-                <div className="p-16 text-center text-gray-500 flex flex-col items-center">
-                  <UserX
-                    size={48}
-                    className="text-gray-300 dark:text-gray-700 mb-4"
-                  />
-                  <p className="text-lg font-medium text-gray-900 dark:text-white">
-                    No residents found
-                  </p>
-                  <p className="text-sm mt-1">
-                    We couldn't find anyone matching "{searchQuery}"
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {filteredMembers.map((user) => {
-                    const isMe = user._id === currentUser._id;
+                  )}
+                </p>
+                <p className="text-sm text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
+                  <Mail size={14} /> {member.email}
+                </p>
+              </div>
+            </div>
 
-                    return (
-                      <div
-                        key={user._id}
-                        className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-5 sm:p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors gap-4"
-                      >
-                        {/* User Info */}
-                        <div className="flex items-center gap-4 w-full sm:w-auto">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-inner shrink-0">
-                            {user.fullName?.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2 truncate">
-                              {user.fullName}
-                              {isMe && (
-                                <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                  Owner (You)
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-sm text-gray-500 flex items-center gap-1.5 truncate mt-0.5">
-                              <Mail size={14} /> {user.email}
-                            </p>
-                          </div>
-                        </div>
+            {/* Actions UI Section */}
+            <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+              {/* View Profile Button targeting renamed member parameter */}
+              <button
+                onClick={() => viewProfile(member._id)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-colors"
+              >
+                <Eye size={16} />{" "}
+                <span className="hidden sm:inline">View</span> Profile
+              </button>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                          {/* 💡 NEW: View Profile Button */}
-                          <button
-                            onClick={() => viewProfile(user._id)}
-                            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-xl transition-colors"
-                          >
-                            <Eye size={16} />{" "}
-                            <span className="hidden sm:inline">View</span>{" "}
-                            Profile
-                          </button>
-
-                          {/* Remove Button (Hide for the Owner) */}
-                          {!isMe && (
-                            <button
-                              onClick={() => removeUser(user._id)}
-                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-xl transition-colors"
-                            >
-                              <Trash2 size={16} /> Remove
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              {/* Remove Button (Hide for the Owner) */}
+              {!isMe && (
+                <button
+                  onClick={() => removeUser(member._id)}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-xl transition-colors"
+                >
+                  <Trash2 size={16} /> Remove
+                </button>
               )}
             </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
           </>
         )}
       </main>

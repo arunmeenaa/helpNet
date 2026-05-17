@@ -8,7 +8,8 @@ const API_URL = import.meta.env.MODE === 'development'
 
 const socket = io(API_URL, {
   autoConnect: true,
-  transports: ['websocket', 'polling']
+  transports: ['websocket'],
+  reconnection: true
 });
 
 // Helper to join room automatically if token exists

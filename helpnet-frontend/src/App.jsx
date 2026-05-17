@@ -164,7 +164,7 @@ function App() {
         <Route
           path="/user/:id"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowBoth={true}>
               <UserProfile />
             </ProtectedRoute>
           }
