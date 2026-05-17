@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from '../api'; 
+import socket from "../socket";
 import SkeletonCard from '../components/SkeletonCard';
 import { jwtDecode } from "jwt-decode";
 import { LogIn, Search, ShieldAlert } from "lucide-react"; 
+import { toast } from "react-hot-toast";
 
 export default function RequestsFeed() {
   const navigate = useNavigate(); 
@@ -82,38 +84,65 @@ export default function RequestsFeed() {
   // ==========================================
   // 👤 FETCH LOGIC
   // ==========================================
-  useEffect(() => {
-    const fetchRequests = async () => {
-      if (!apartmentId) {
-        setLoading(false);
-        return;
-      }
+ // 1. Move fetchRequests out of the open hook so it can be called anywhere
+const fetchRequests = async () => {
+  if (!apartmentId) {
+    setLoading(false);
+    return;
+  }
 
-      try {
-        const response = await fetch(`${API_URL}/api/requests`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+  try {
+    const response = await fetch(`${API_URL}/api/requests`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
 
-        if (response.status === 403) {
-          const updatedUser = { ...storedUser, apartmentId: null, isEvicted: true };
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-          window.dispatchEvent(new Event("local-storage-update"));
-          navigate("/dashboard");
-          return;
-        }
+    if (response.status === 403) {
+     toast.error("Access Denied: You have been removed from this apartment community.", {
+    duration: 5000, // Keeps the alert visible for 5 seconds
+    id: "eviction-alert" // Prevents duplicate toasts if the hook re-renders
+  });
+      const updatedUser = { ...storedUser, apartmentId: null, isEvicted: true };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event("local-storage-update"));
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 0);
+      return;
+    }
 
-        if (!response.ok) throw new Error("Failed to fetch requests");
-        const data = await response.json();
-        setRequests(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!response.ok) throw new Error("Failed to fetch requests");
+    const data = await response.json();
+    setRequests(data);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
-    fetchRequests();
-  }, [token, apartmentId, navigate]);
+// 2. The streamlined Lifecycle hook handling initial load + live socket updates
+useEffect(() => {
+  // Run immediately on page mount
+  fetchRequests();
+
+  // 🌟 REAL-TIME REFRESH LISTENER
+  const handleFeedRefresh = () => {
+    console.log("🔄 Real-time event: Refreshing feed due to community update");
+    fetchRequests(); // Re-fetch the database items to discard removed user cards instantly
+  };
+
+  // Bind listeners
+  socket.on("feed_updated", handleFeedRefresh);
+  socket.on("user_removed", handleFeedRefresh); // Optional: handles instant removal cleanup too
+
+  // Cleanup to prevent dangling event accumulation blocks
+  return () => {
+    socket.off("feed_updated", handleFeedRefresh);
+    socket.off("user_removed", handleFeedRefresh);
+  };
+  
+  // Keep dependencies clean and optimized
+}, [token, apartmentId, navigate]);
 
   if (!apartmentId) {
      navigate("/dashboard");

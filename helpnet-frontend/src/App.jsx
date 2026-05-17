@@ -42,12 +42,12 @@ function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const token = params.get("token");
+    const urlToken = params.get("token");
 
-    if (token) {
-      localStorage.setItem("token", token);
+    if (urlToken) {
+      localStorage.setItem("token", urlToken);
       try {
-        const base64Url = token.split(".")[1];
+        const base64Url = urlToken.split(".")[1];
         const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
         const userData = JSON.parse(window.atob(base64));
 
@@ -70,34 +70,36 @@ function App() {
       }
     }
   }, [location, navigate]);
-useEffect(() => {
-  if (user?.id) {
-    // This tells the server: "I am user X, send my messages here"
-    socket.emit("join_room", user.id);
+
+  useEffect(() => {
+    if (user?.id) {
+      // This tells the server: "I am user X, send my messages here"
+      socket.emit("join_room", user.id);
+      
+      socket.on("connect", () => {
+        console.log("Connected to socket server:", socket.id);
+        socket.emit("join_room", user.id); // Re-join on reconnect
+      });
+    }
     
-    socket.on("connect", () => {
-      console.log("Connected to socket server:", socket.id);
-      socket.emit("join_room", user.id); // Re-join on reconnect
-    });
-  }
-  
-  return () => {
-    socket.off("connect");
-  };
-}, [user?.id]);
+    return () => {
+      socket.off("connect");
+    };
+  }, [user?.id]);
+
   return (
     <>
       <ScrollToTop />
       <Routes>
         {/* Public Routes */}
         <Route 
-    path="/" 
-    element={
-      <PublicOnlyRoute>
-        <Home />
-      </PublicOnlyRoute>
-    } 
-  />
+          path="/" 
+          element={
+            <PublicOnlyRoute>
+              <Home />
+            </PublicOnlyRoute>
+          } 
+        />
         <Route path="/about" element={<About />} />
 
         <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
@@ -136,7 +138,8 @@ useEffect(() => {
           path="/AdminProfile"
           element={
             <ProtectedRoute adminOnly={true}>
-              <AdminProfile />
+              {/* ✅ FIXED: Stripped out the bare reference error variable; reading directly from storage instead */}
+              <AdminProfile currentUser={user} token={localStorage.getItem("token")}/>
             </ProtectedRoute>
           }
         />

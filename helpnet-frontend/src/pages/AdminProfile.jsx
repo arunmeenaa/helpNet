@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import socket from "../socket";
 import API_URL from "../api";
 import {
   User,
@@ -15,11 +16,12 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-export default function AdminProfile() {
+export default function AdminProfile({currentUser,token}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [pendingRequests, setPendingRequests] = useState([]);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
 
   const handleLogout = () => {
@@ -27,6 +29,49 @@ export default function AdminProfile() {
     toast.success("Logged out successfully");
     navigate("/admin-login");
   };
+
+  const uniqueRequests = useMemo(() => {
+  const seen = new Set();
+  return pendingRequests.filter((req) => {
+    if (seen.has(req._id)) return false;
+    seen.add(req._id);
+    return true;
+  });
+}, [pendingRequests]);
+
+const fetchPendingRequests = async () => {
+  try {
+    const res = await fetch(`${API_URL}/api/admin/join-requests`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error("Failed to fetch");
+    const data = await res.json();
+    setPendingRequests(data);
+  } catch (err) {
+    console.error("Error fetching requests:", err);
+  }
+};
+useEffect(() => {
+  // 1. Fetch initial records from DB on component mount
+  fetchPendingRequests();
+
+  // 2. Listen for real-time join events from new registrations
+  const handleNewRequest = (newUser) => {
+    console.log("📨 Real-time request caught on profile:", newUser);
+    
+    // Ensure the user signing up belongs to this specific admin's apartment building
+    if (newUser.apartmentId === currentUser?.apartmentId) {
+      setPendingRequests((prev) => [newUser, ...prev]);
+      toast.info(`New resident request from ${newUser.fullName}`);
+    }
+  };
+
+  socket.on("new_join_request", handleNewRequest);
+
+  return () => {
+    socket.off("new_join_request", handleNewRequest);
+  };
+}, [currentUser?.apartmentId, token]);
 
   const fetchMembers = async () => {
     const token = localStorage.getItem("token"); // 💡 Fix: Retrieve token here
@@ -118,7 +163,7 @@ export default function AdminProfile() {
                 <p className="text-gray-400 text-xs font-bold uppercase">
                   Pending Needs
                 </p>
-                <p className="text-3xl font-black text-purple-600 mt-1">05</p>
+                <p className="text-3xl font-black text-purple-600 mt-1">{uniqueRequests.length}</p>
               </div>
             </div>
 

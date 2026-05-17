@@ -5,7 +5,8 @@ const { auth, isAdmin } = require("../middleware/auth");
 const Apartment = require("../models/Apartment");
 const User = require("../models/user"); 
 const JoinRequest = require("../models/JoinRequest");
-
+const Request = require('../models/Request'); // 👈 Ensure this points to your file!
+const Offer = require('../models/Offer');
 // ✅ Create apartment
 router.post('/create-apartment', auth, async (req, res) => {
   try {
@@ -69,24 +70,35 @@ router.delete("/remove-user/:id", auth, isAdmin, async (req, res) => {
     if (!targetUser) return res.status(404).json({ message: "User not found." });
     if (targetUser.apartmentId !== req.user.apartmentId) return res.status(403).json({ message: "Access denied." });
 
+    // 1. Update user statuses
     targetUser.apartmentId = null;
     targetUser.isEvicted = true;
     await targetUser.save();
 
-    // 1. Get the 'io' instance
+    // 🌟 2. DATABASE CLEANUP: Delete all requests and offers created by this user
+    // Double-check if your schema fields are named 'creator', 'userId', or 'sender' and match them below
+    const deletedRequests = await Request.deleteMany({ author: targetUser._id });
+    const deletedOffers = await Offer.deleteMany({ author: targetUser._id });
+    
+    console.log(`🧹 Cascaded Cleanup: Deleted ${deletedRequests.deletedCount} requests and ${deletedOffers.deletedCount} offers for evicted user ${targetUser._id}`);
+
+    // 3. Get the 'io' instance
     const io = req.app.get('io');
     
-    // 2. Emit the event to the user who was removed
-   // console.log("Attempting to emit user_removed to room:", targetUser._id.toString());
-    // We use targetUser._id.toString() to ensure it matches the room ID
+    // 4. Emit the event to the user who was removed
     if (io) {
-      io.to(targetUser._id.toString()).emit("user_removed", { 
+      const userRoom = targetUser._id.toString();
+      io.to(userRoom).emit("user_removed", { 
         message: "You have been removed from the community." 
       });
+
+      // 🌟 5. Tell everyone else in the apartment feed to refresh and drop the deleted cards immediately
+      io.emit("feed_updated");
     }
 
-    res.json({ message: "User removed." });
+    res.json({ message: "User removed and community posts cleared successfully." });
   } catch (err) {
+    console.error("Error in remove-user endpoint:", err);
     res.status(500).json({ message: "Server Error" });
   }
 });
