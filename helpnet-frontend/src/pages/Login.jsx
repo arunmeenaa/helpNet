@@ -50,8 +50,6 @@ export default function Login() {
     navigate("/create-apartment");
   } else if (user.role === "admin") {
     navigate("/admin");
-  } else if (!user.apartmentId) {
-    navigate("/set-apartment");
   } else {
     navigate("/dashboard");
   }

@@ -56,7 +56,7 @@ const currentUser = token ? jwtDecode(token) : null;
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`${API_URL}/api/messages`, {
+      const response = await fetch(`${API_URL}/api/messages/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

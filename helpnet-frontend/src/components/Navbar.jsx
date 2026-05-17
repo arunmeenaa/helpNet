@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import socket, { joinSocketRoom } from '../socket';
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -57,7 +58,38 @@ export default function Navbar() {
       console.error("Unread error:", err.message);
     }
   };
+// Navbar.jsx
 
+useEffect(() => {
+  // 1. Identify the user to the socket server immediately
+  joinSocketRoom();
+
+  // 2. Get the starting count when the Navbar first loads
+  fetchUnreadCount();
+
+  // 3. Define a single, clean handler for new messages
+  const handleNewMessage = () => {
+    console.log("📨 Real-time update: Refreshing unread count...");
+    fetchUnreadCount();
+  };
+
+  // 4. Also listen for the manual trigger from Dashboard (if used)
+  const handleManualUpdate = () => {
+    fetchUnreadCount();
+  };
+
+  // 5. Setup Listeners
+  socket.on("receive_message", handleNewMessage);
+  window.addEventListener("messagesUpdated", handleManualUpdate);
+
+  // 6. CLEANUP: This is vital to prevent "Uncaught ReferenceError" or multiple pings
+  return () => {
+    socket.off("receive_message", handleNewMessage);
+    window.removeEventListener("messagesUpdated", handleManualUpdate);
+  };
+  
+  // Dependencies: Empty array means this runs once on mount
+}, []);
   // 1. DEFINE syncUser FIRST
   const syncUser = () => {
     const storedUser = localStorage.getItem("user");

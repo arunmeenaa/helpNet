@@ -135,7 +135,32 @@ router.patch('/:id', auth, async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
+router.patch('/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
 
+    // Validation: only allow specific statuses if desired
+    const validStatuses = ['open', 'resolved', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const updatedOffer = await Offer.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!updatedOffer) {
+      return res.status(404).json({ message: "Offer not found" });
+    }
+
+    res.json(updatedOffer);
+  } catch (err) {
+    console.error("Offer Status Error:", err);
+    res.status(500).json({ message: "Server error updating offer status" });
+  }
+});
 // ==========================================
 // 6. DELETE OFFER
 // ==========================================

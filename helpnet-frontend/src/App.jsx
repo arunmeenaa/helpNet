@@ -17,7 +17,6 @@ import RequestDetails from "./pages/RequestDetails";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import OfferDetails from "./pages/OfferDetails";
-import SetApartment from "./pages/SetApartment";
 import About from "./pages/About";
 import ScrollToTop from "./components/ScrollToTop";
 import UserProfile from "./pages/UserProfile";
@@ -32,6 +31,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminRegister from "./pages/AdminRegister";
 import AdminDashboard from "./pages/AdminDashboard";
 import CreateApartment from "./pages/CreateApartment";
+import socket from './socket';
 
 function App() {
   const location = useLocation();
@@ -70,7 +70,21 @@ function App() {
       }
     }
   }, [location, navigate]);
-
+useEffect(() => {
+  if (user?.id) {
+    // This tells the server: "I am user X, send my messages here"
+    socket.emit("join_room", user.id);
+    
+    socket.on("connect", () => {
+      console.log("Connected to socket server:", socket.id);
+      socket.emit("join_room", user.id); // Re-join on reconnect
+    });
+  }
+  
+  return () => {
+    socket.off("connect");
+  };
+}, [user?.id]);
   return (
     <>
       <ScrollToTop />
@@ -97,6 +111,7 @@ function App() {
         <Route path="/RequestsFeed" element={<RequestsFeed />} />
         <Route path="/requests/:id" element={<RequestDetails />} />
         <Route path="/offer-details/:id" element={<OfferDetails />} />
+        <Route path="/request-details/:id" element={<RequestDetails />} />
 
         {/* Protected Admin Routes */}
         <Route
@@ -135,7 +150,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/set-apartment" element={<SetApartment />} />
         <Route
           path="/profile"
           element={

@@ -14,6 +14,7 @@ export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
+ const messagesEndRef = useRef(null);
 
   // Parse user from Token
   const user = token ? jwtDecode(token) : null;
@@ -41,6 +42,15 @@ const [currentUser, setCurrentUser] = useState(null);
   const [editData, setEditData] = useState({ title: "", description: "" });
 
   const hasApartment = currentUser?.apartmentId || localStorageUser?.apartmentId;
+  const scrollToBottom = () => {
+  // Smoothly scrolls the window down to the dummy element location
+  messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+};
+useEffect(() => {
+  if (conversation.length > 0) {
+    scrollToBottom();
+  }
+}, [conversation]);
   // URL Tab Checker
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -51,32 +61,57 @@ const [currentUser, setCurrentUser] = useState(null);
   }, [location.search]);
 
   // --- Socket & Data Fetching ---
-  useEffect(() => {
+ useEffect(() => {
   if (user?.id) socket.emit("join_room", user.id);
 
   // 1. Define handlers separately
   const handleReceiveMessage = (newMsg) => {
+    console.log("📨 Real-time socket message arrived:", newMsg);
+    
+    // Always update the sidebar inbox list preview
     setMessages((prev) => [newMsg, ...prev]);
+    
+    // Extract string IDs carefully to avoid type-mismatch bugs
+    const incomingSenderId = (newMsg.sender?._id || newMsg.sender).toString();
+    const activeChatId = replyingTo ? replyingTo.toString() : null;
+
+    console.log("Comparing IDs for Chatbox update:", { incomingSenderId, activeChatId });
+
+    // ✅ FIX: If the user currently has this exact chat window open, push it to the screen!
+    if (activeChatId === incomingSenderId) {
+      setConversation((prev) => [...prev, newMsg]);
+
+      // Since they are actively looking at it, tell the backend it's read immediately
+      fetch(`${API_URL}/api/messages/${newMsg._id}/read`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(() => {
+        // Trigger navbar badge count update
+        window.dispatchEvent(new Event("messagesUpdated"));
+      });
+    } else {
+      // If the chat window IS NOT open, refresh the count badge via custom event or direct fetch
+      if (typeof fetchUnreadCount === 'function') {
+        fetchUnreadCount();
+      } else {
+        window.dispatchEvent(new Event("messagesUpdated"));
+      }
+    }
   };
 
   const handleApproval = (data) => {
     toast.success("Admin approved your request!");
-    // Update local storage
     const updatedUser = { ...localStorageUser, apartmentId: data.apartmentId };
     localStorage.setItem("user", JSON.stringify(updatedUser));
-    // Update state to trigger re-render
     setCurrentUser(updatedUser);
   };
 
   const handleUserRemoved = (data) => {
-    
     toast.error("You have been removed from the apartment.");
     const storedUser = JSON.parse(localStorage.getItem("user"));
-
     const updatedUser = { ...storedUser, apartmentId: null };
-  localStorage.setItem("user", JSON.stringify(updatedUser));
+    localStorage.setItem("user", JSON.stringify(updatedUser));
     window.dispatchEvent(new Event("local-storage-update"));
-   // window.location.reload();
   };
 
   // 2. Attach listeners
@@ -90,8 +125,84 @@ const [currentUser, setCurrentUser] = useState(null);
     socket.off("approval_confirmed", handleApproval);
     socket.off("user_removed", handleUserRemoved);
   };
-}, [user?.id, localStorageUser]); // Added localStorageUser as a dependency just in case
 
+  // 🌟 CRITICAL CHANGE: Added 'replyingTo' and 'token' here.
+  // Without this, the listener inside cannot read who you are currently chatting with!
+}, [user?.id, localStorageUser, replyingTo, token]); // Added localStorageUser as a dependency just in case
+
+// --- Post Action Handlers ---
+
+const handleUpdateStatus = async (postId, postType, newStatus) => {
+  setUpdatingStatusId(postId);
+  try {
+    const res = await fetch(`${API_URL}/api/${postType}/${postId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status: newStatus }),
+    });
+
+    if (!res.ok) throw new Error("Failed to update status");
+
+    // Update local state so the UI changes immediately
+    setMyPosts((prev) =>
+      prev.map((post) =>
+        post._id === postId ? { ...post, status: newStatus } : post
+      )
+    );
+    toast.success(`Post marked as ${newStatus}`);
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    setUpdatingStatusId(null);
+  }
+};
+
+const handleUpdatePost = async (e, postId, postType) => {
+  e.preventDefault();
+  try {
+    const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(editData),
+    });
+
+    if (!res.ok) throw new Error("Failed to update post");
+
+    setMyPosts((prev) =>
+      prev.map((post) =>
+        post._id === postId ? { ...post, ...editData } : post
+      )
+    );
+    setEditingPost(null);
+    toast.success("Post updated successfully");
+  } catch (err) {
+    toast.error(err.message);
+  }
+};
+
+const deletePost = async (postId, postType) => {
+  if (!window.confirm("Are you sure you want to delete this post?")) return;
+  
+  try {
+    const res = await fetch(`${API_URL}/api/${postType}/${postId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) throw new Error("Failed to delete post");
+
+    setMyPosts((prev) => prev.filter((post) => post._id !== postId));
+    toast.success("Post deleted");
+  } catch (err) {
+    toast.error(err.message);
+  }
+};
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!token || !apartmentIdFromStorage) {
@@ -171,6 +282,89 @@ const [currentUser, setCurrentUser] = useState(null);
       setLoading(false);
     }
   };
+  // --- 5. MESSAGE GROUPING LOGIC ---
+const groupedMessages = useMemo(() => {
+  if (!Array.isArray(messages)) return [];
+
+  const groups = {};
+  messages.forEach((msg) => {
+    // Identify the other person in the conversation
+    const otherUser =
+      (msg.sender?._id || msg.sender) === user?.id
+        ? msg.receiver
+        : msg.sender;
+
+    const otherUserId = (otherUser?._id || otherUser)?.toString();
+
+    // Only group if we have a valid other user
+    if (otherUserId && !groups[otherUserId]) {
+      groups[otherUserId] = {
+        ...msg,
+        otherUser, // Store the other user's object for the UI
+      };
+    }
+  });
+  return Object.values(groups);
+}, [messages, user?.id]);
+
+const openConversation = async (otherUserId) => {
+  setReplyingTo(otherUserId);
+  setLoadingChat(true);
+  try {
+    const res = await fetch(`${API_URL}/api/messages/conversation/${otherUserId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    setConversation(data);
+
+    // 1. Identify unread messages meant for YOU
+    const unreadMsgs = data.filter(m => !m.isRead && (m.receiver?._id || m.receiver) === user.id);
+
+    if (unreadMsgs.length > 0) {
+      // 2. Wait for the server to mark them all as read
+      await Promise.all(unreadMsgs.map(msg => 
+        fetch(`${API_URL}/api/messages/${msg._id}/read`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ));
+
+      // 3. IMPORTANT: Manually trigger the Navbar count refresh
+      // Since fetchUnreadCount is in Navbar, use a custom event
+      window.dispatchEvent(new Event("messagesUpdated")); 
+    }
+  } catch (err) {
+    toast.error("Error loading chat");
+  } finally {
+    setLoadingChat(false);
+  }
+};
+
+const handleReply = async (e, receiverId, relatedPostId, postTitle) => {
+    e.preventDefault();
+    try {
+        const res = await fetch(`${API_URL}/api/messages/send`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                receiverId,
+                content: replyContent,
+                relatedPostId,
+                postTitle
+            })
+        });
+        if (res.ok) {
+            const newMsg = await res.json();
+            setConversation(prev => [...prev, newMsg]);
+            setReplyContent("");
+        }
+    } catch (err) {
+        toast.error("Failed to send message");
+    }
+};
 
   // ==========================================
   // 🚨 GATEKEEPER UI

@@ -129,7 +129,20 @@ router.post('/join-requests', auth, async (req, res) => {
 router.delete('/reject-join', auth, async (req, res) => {
   try {
     const { requestId } = req.body;
+
+    // 1. Find the request first so we have the userId
+    const request = await JoinRequest.findById(requestId);
+    if (!request) return res.status(404).json({ message: "Request not found" });
+
+    // 2. Get the IO instance and notify the specific user
+    const io = req.app.get('io');
+    io.to(request.userId.toString()).emit("request_rejected", { 
+        message: "Your join request has been rejected by the admin." 
+    });
+
+    // 3. Now delete the request
     await JoinRequest.findByIdAndDelete(requestId);
+    
     res.json({ message: "Request rejected successfully." });
   } catch (err) {
     res.status(500).json({ message: err.message });

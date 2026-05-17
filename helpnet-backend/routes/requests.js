@@ -113,7 +113,31 @@ router.post('/', auth, async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
+// Backend: routes/requests.js
+// routes/requests.js
 
+// This handles: PATCH /api/requests/:id/status
+router.patch('/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    
+    // Find the request and update only the status field
+    const updatedRequest = await Request.findByIdAndUpdate(
+      req.params.id,
+      { status: status },
+      { new: true } // returns the updated document
+    );
+
+    if (!updatedRequest) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+
+    res.json(updatedRequest);
+  } catch (err) {
+    console.error("Status Update Error:", err);
+    res.status(500).json({ message: "Server error updating status" });
+  }
+});
 // ==========================================
 // 5. UPDATE REQUEST
 // ==========================================
