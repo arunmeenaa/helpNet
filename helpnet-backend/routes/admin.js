@@ -7,8 +7,99 @@ const User = require("../models/user");
 const JoinRequest = require("../models/JoinRequest");
 const Request = require('../models/Request'); // 👈 Ensure this points to your file!
 const Offer = require('../models/Offer');
-
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 // ✅ Create apartment
+
+if (!fs.existsSync("./uploads")) {
+  fs.mkdirSync("./uploads");
+}
+
+// Multer Storage Configuration
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    // Generates a unique filename: timestamp + original extension
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`);
+  }
+});
+
+// File Filter to allow only images
+// backend/routes/admin.js
+
+const fileFilter = (req, file, cb) => {
+  // 1. Read file characteristics
+  const mimeType = file.mimetype.toLowerCase();
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+  
+  // 2. Define standard whitelisted image extensions
+  const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+
+  // 3. Validation matching sequence
+  if (mimeType.startsWith("image/") || allowedExtensions.includes(fileExtension)) {
+    cb(null, true); // Accept file safely
+  } else {
+    // Pass a clean validation message back to the pipeline instead of a terminal crash exception
+    cb(new Error("Invalid format! Only image files (JPG, PNG, WEBP) are allowed."), false);
+  }
+};
+
+// backend/routes/admin.js
+
+// 1. Keep your multer instantiation setup line
+const upload = multer({ storage, fileFilter, limits: { fileSize: 2 * 1024 * 1024 } }).single("profilePic");
+
+// 2. Rewrite the route declaration block to isolate upload processes
+router.post("/upload-profile-pic", auth, (req, res, next) => {
+  upload(req, res, async function (err) {
+    // 🔒 CATCH MULTER/FILE FILTER VALIDATION ERRORS CLEANLY
+    if (err) {
+      console.error("Multer validation intercepted:", err.message);
+      return res.status(400).json({ message: err.message });
+    }
+
+    // 🔒 CHECK IF NO FILE WAS CHOSEN
+    if (!req.file) {
+      return res.status(400).json({ message: "Please select an image file to upload." });
+    }
+
+    try {
+      const imagePath = `/uploads/${req.file.filename}`;
+      
+      // 🌟 MONGODB UPDATE (With the modern 'returnDocument' replacement option fixed!)
+      const updatedUser = await User.findByIdAndUpdate(
+        req.user.id,
+        { profilePic: imagePath },
+        { returnDocument: "after" } // 👈 Fixes your Mongoose deprecation warning!
+      ).select("-password");
+
+      // Optional: Socket.io real-time update broadcast hook
+      try {
+        const io = req.app.get("io");
+        if (io && updatedUser.apartmentId) {
+          io.to(updatedUser.apartmentId.toString()).emit("resident_profile_updated", updatedUser);
+        }
+      } catch (socketErr) {
+        console.warn("Real-time broadcast skipped safely:", socketErr.message);
+      }
+
+      // Success payload delivery
+      return res.json({ 
+        message: "Profile picture updated successfully!", 
+        user: updatedUser 
+      });
+
+    } catch (dbErr) {
+      console.error("Database update transaction failed:", dbErr);
+      return res.status(500).json({ message: "Database lookup error encountered." });
+    }
+  });
+});
+
+
 router.post('/create-apartment', auth, async (req, res) => {
   try {
     const { name, apartmentId } = req.body;
@@ -65,7 +156,7 @@ router.get("/members", auth, isAdmin, async (req, res) => {
     const members = await User.find({ 
       apartmentId: req.user.apartmentId,
       role: { $ne: "admin" } 
-    }).select("fullName email createdAt");
+    }).select("fullName email createdAt profilePic");
     
     res.json(members);
   } catch (err) {

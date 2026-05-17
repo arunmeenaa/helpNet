@@ -91,9 +91,26 @@ export default function UserProfile() {
               {/* Avatar profile initial */}
               <div className="relative flex justify-center -mt-16 mb-6">
                 <div className="w-32 h-32 bg-gray-900 dark:bg-gray-950 rounded-full p-2">
-                  <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white flex items-center justify-center font-bold text-4xl rounded-full shadow-inner">
-                    {userData.fullName?.charAt(0).toUpperCase()}
-                  </div>
+                 <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white flex items-center justify-center font-bold text-4xl rounded-full shadow-inner overflow-hidden relative">
+  {userData?.profilePic ? (
+    // Scenario A: Profile picture exists -> Display the Resident's Image
+    <img 
+      src={`${API_URL}${userData.profilePic}`} 
+      alt={userData.fullName || "Resident Profile"} 
+      className="w-full h-full object-cover"
+      onError={(e) => {
+        // Fallback guard if image fails to render over the network
+        e.target.style.display = 'none';
+        e.target.nextSibling.style.display = 'flex';
+      }}
+    />
+  ) : null}
+
+  {/* Scenario B: No profile picture -> Display Initials fallback block */}
+  <span className={userData?.profilePic ? "hidden" : "flex items-center justify-center"}>
+    {userData.fullName?.charAt(0).toUpperCase() || "U"}
+  </span>
+</div>
                 </div>
               </div>
 

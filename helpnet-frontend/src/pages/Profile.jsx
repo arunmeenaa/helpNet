@@ -4,11 +4,13 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import API_URL from "../api";
 import { toast } from "react-hot-toast";
+import { Mail, ArrowLeft, Calendar, Camera, Eye } from "lucide-react";
 
 export default function Profile() {
   const [stats, setStats] = useState({ requests: 0, offers: 0 });
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [userData, setUserData] = useState(
     JSON.parse(localStorage.getItem("user") || "{}"),
   );
@@ -126,6 +128,53 @@ if (userRes.status === 403 || requestsRes.status === 403 || offersRes.status ===
       setIsUpdating(false);
     }
   };
+
+  const handleFileChange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // 1. Client-side size restriction check (2MB Limit)
+  if (file.size > 2 * 1024 * 1024) {
+    alert("File is too large! Maximum size allowed is 2MB.");
+    return;
+  }
+
+  // 2. Wrap file in binary FormData structure for Multer to read
+  const formData = new FormData();
+  formData.append("profilePic", file);
+
+  try {
+    setUploading(true);
+    const token = localStorage.getItem("token");
+    
+    // 3. Fire request to your backend upload route handler
+    const res = await fetch(`${API_URL}/api/admin/upload-profile-pic`, {
+      method: "POST",
+      headers: { 
+        Authorization: `Bearer ${token}` 
+        // ⚠️ CRITICAL: Do NOT add 'Content-Type' header here. 
+        // The browser must set the multi-part boundary string automatically.
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Upload operation failed.");
+
+    // 4. Force state sync so the interface pulls down the new asset path immediately
+    setUserData(data.user);
+    
+    // 5. Update local storage tracking sync so the navbar update doesn't fall behind
+    localStorage.setItem("user", JSON.stringify(data.user));
+    
+    alert("Profile picture updated successfully!");
+  } catch (err) {
+    console.error("Upload error caught:", err.message);
+    alert(err.message);
+  } finally {
+    setUploading(false);
+  }
+};
 
   const EditableField = ({ label, value, fieldName, icon }) => {
     const isThisEditing = editingField === fieldName;
@@ -245,12 +294,47 @@ if (userRes.status === 403 || requestsRes.status === 403 || offersRes.status ===
           <div className="h-24 md:h-32 bg-gradient-to-br from-blue-600 to-indigo-500 relative">
             <div className="absolute -bottom-8 md:bottom-[-2.5rem] left-6 md:left-8">
               <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl md:rounded-3xl bg-white dark:bg-gray-900 p-1 shadow-xl">
-                <div className="w-full h-full rounded-xl md:rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-2xl md:text-3xl font-black text-blue-600 uppercase">
-                  {(editingField === "fullName"
-                    ? tempValue
-                    : userData.fullName
-                  )?.charAt(0) || "U"}
-                </div>
+             <div className="w-full h-full rounded-xl md:rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-2xl md:text-3xl font-black text-blue-600 uppercase overflow-hidden relative group">
+  {userData?.profilePic ? (
+    // Scenario A: Profile picture exists -> Display the Image
+    <img 
+      src={`${API_URL}${userData.profilePic}`} 
+      alt={userData.fullName || "User Profile"} 
+      className="w-full h-full object-cover"
+    />
+  ) : (
+    // Scenario B: No profile picture -> Display Initials + Clickable Upload Overlay
+    <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-all duration-200 relative">
+      
+      {/* The fallback initials letter */}
+      <span className="group-hover:opacity-0 transition-opacity duration-200">
+        {(editingField === "fullName" ? tempValue : userData?.fullName)?.charAt(0) || "U"}
+      </span>
+
+      {/* Hover Option: Displays "Upload Pic" and a camera icon over the initials */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-blue-600 dark:text-blue-400 bg-gray-100/90 dark:bg-gray-800/90 rounded-xl md:rounded-2xl">
+        <Camera size={24} />
+        <span className="text-[10px] font-bold tracking-wider uppercase">Upload Pic</span>
+      </div>
+
+      {/* Hidden File Input Stream Element */}
+      <input 
+        type="file" 
+        accept="image/*" 
+        onChange={handleFileChange} // Reuse your file upload tracking handler function
+        className="hidden" 
+        disabled={uploading}
+      />
+    </label>
+  )}
+  
+  {/* Small loading spinner overlay if a file is currently transferring */}
+  {uploading && (
+    <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl md:rounded-2xl">
+      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+    </div>
+  )}
+</div>
               </div>
             </div>
           </div>

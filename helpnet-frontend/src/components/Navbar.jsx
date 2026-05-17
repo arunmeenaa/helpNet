@@ -212,9 +212,26 @@ useEffect(() => {
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     className="flex items-center gap-2 p-1 pr-3 rounded-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-blue-300 transition-all"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center text-xs font-bold">
-                      {user.fullName?.charAt(0).toUpperCase()}
-                    </div>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center text-xs font-bold overflow-hidden">
+  {user?.profilePic ? (
+    // Scenario A: Profile picture exists -> Display the Image asset
+    <img 
+      src={`${API_URL}${user.profilePic}`} 
+      alt={user.fullName || "My Profile"} 
+      className="w-full h-full object-cover"
+      onError={(e) => {
+        // Safe layout fallback if a network error prevents the image from loading
+        e.target.style.display = 'none';
+        e.target.nextSibling.style.display = 'block';
+      }}
+    />
+  ) : null}
+
+  {/* Scenario B: No profile picture -> Display Initials fallback block */}
+  <span className={user?.profilePic ? "hidden" : "block"}>
+    {user?.fullName?.charAt(0).toUpperCase() || "U"}
+  </span>
+</div>
                     <ChevronDown
                       size={14}
                       className={`text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}

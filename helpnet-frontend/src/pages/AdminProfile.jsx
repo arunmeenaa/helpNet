@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import socket from "../socket";
 import API_URL from "../api";
+
 import {
   User,
   Mail,
@@ -13,12 +14,14 @@ import {
   Building,
   ChevronRight,
   Search,
+  Camera
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function AdminProfile({currentUser,token}) {
   const [searchQuery, setSearchQuery] = useState("");
   const [members, setMembers] = useState([]);
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -99,6 +102,57 @@ useEffect(() => {
         member.email?.toLowerCase().includes(searchQuery.toLowerCase()),
     );
   }, [members, searchQuery]);
+  const handleFileChange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Client-side restriction: Max file weight limit 2MB
+  if (file.size > 2 * 1024 * 1024) {
+    alert("File is too large! Maximum size allowed is 2MB.");
+    return;
+  }
+
+  // Pack the file stream inside a standard multi-part FormData container
+  const formData = new FormData();
+  formData.append("profilePic", file);
+
+  try {
+    setUploading(true);
+    const token = localStorage.getItem("token");
+    
+    // Fire the stream directly into your backend upload route destination endpoint
+    const res = await fetch(`${API_URL}/api/admin/upload-profile-pic`, {
+      method: "POST",
+      headers: { 
+        Authorization: `Bearer ${token}` 
+        // ⚠️ CRITICAL REMINDER: Do NOT add 'Content-Type' header here. 
+        // The browser must calculate the mult-part boundary layout automatically.
+      },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Upload operation failed.");
+
+    // Update your local state context configuration instantly so the new picture renders
+    // Note: Ensure your page utilizes standard user/setValues state hooks!
+    if (typeof setUser === "function") {
+      setUser(data.user);
+    } else if (typeof setUserData === "function") {
+      setUserData(data.user);
+    }
+    
+    // Sync local storage so the Navbar avatar changes instantly as well
+    localStorage.setItem("user", JSON.stringify(data.user));
+    
+    alert("Admin profile picture updated successfully!");
+  } catch (err) {
+    console.error("Admin upload operation intercepted:", err.message);
+    alert(err.message);
+  } finally {
+    setUploading(false);
+  }
+};
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
       <Navbar />
@@ -112,9 +166,47 @@ useEffect(() => {
           {/* Left Column: Personal Info */}
           <div className="md:col-span-1">
             <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-100 dark:border-gray-800 rounded-3xl p-8 shadow-xl">
-              <div className="w-24 h-24 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center text-white text-3xl font-black mb-6 shadow-lg shadow-purple-500/20">
-                {user.fullName?.charAt(0) || "A"}
-              </div>
+              <div className="w-24 h-24 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-2xl flex items-center justify-center text-white text-3xl font-black mb-6 shadow-lg shadow-purple-500/20 overflow-hidden relative group">
+  {user?.profilePic ? (
+    // Scenario A: Admin has a profile picture -> Render the image asset cleanly
+    <img 
+      src={`${API_URL}${user.profilePic}`} 
+      alt={user.fullName || "Admin Profile"} 
+      className="w-full h-full object-cover"
+    />
+  ) : (
+    // Scenario B: No profile picture -> Display Initials + Clickable Hover Upload Layer
+    <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer hover:from-purple-700 hover:to-indigo-600 transition-all duration-200 relative">
+      
+      {/* Fallback initial letter text */}
+      <span className="group-hover:opacity-0 transition-opacity duration-200">
+        {user.fullName?.charAt(0) || "A"}
+      </span>
+
+      {/* Hover overlay that reads "Upload" and displays a camera icon */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-purple-900/90 text-white rounded-2xl">
+        <Camera size={20} />
+        <span className="text-[9px] font-bold tracking-wider uppercase">Upload</span>
+      </div>
+
+      {/* Hidden native input processing the multi-part payload stream */}
+      <input 
+        type="file" 
+        accept="image/*" 
+        onChange={handleFileChange} // Reuses the same client-side upload handler function
+        className="hidden" 
+        disabled={uploading}
+      />
+    </label>
+  )}
+
+  {/* Small centered spinner block that activates while an active file stream upload takes place */}
+  {uploading && (
+    <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-2xl">
+      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+    </div>
+  )}
+</div>
               <h2 className="text-xl font-black text-gray-900 dark:text-white">
                 {user.fullName}
               </h2>

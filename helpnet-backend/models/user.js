@@ -49,6 +49,10 @@ isEvicted: {
     type: Boolean,
     default: false
   },
+  profilePic: {
+  type: String,
+  default: "" // Stores the file path or URL (e.g., "/uploads/profile-12345.jpg")
+}
 }, { timestamps: true });
 
 // ✅ Index for fast filtering

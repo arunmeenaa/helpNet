@@ -420,9 +420,32 @@ const viewProfile = (userId) => {
           >
             {/* Resident Info info */}
             <div className="flex items-center gap-4 w-full sm:w-auto">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-inner shrink-0">
-                {member.fullName?.charAt(0).toUpperCase()}
-              </div>
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-inner shrink-0 overflow-hidden border-2 border-white dark:border-gray-900 shadow-md">
+  {member?.profilePic ? (
+    // Scenario A: Resident has uploaded a picture -> Load the Image asset
+    <img  
+      src={`${API_URL}${member.profilePic}`} 
+      alt={member.fullName || "Member Profile"} 
+      className="w-full h-full object-cover"
+      onError={(e) => {
+        // Fallback protection if file path fails to load over the network
+        e.target.style.display = 'none';
+        
+        // Find the fallback text container and make sure it takes up flex center layout
+        const fallbackSpan = e.target.parentElement.querySelector('.fallback-text');
+        if (fallbackSpan) {
+          fallbackSpan.classList.remove('hidden');
+          fallbackSpan.classList.add('block');
+        }
+      }}
+    />
+  ) : null}
+
+  {/* Scenario B: No profile picture -> Display Initials layout */}
+  <span className={member?.profilePic ? "hidden" : "block"}>
+    {member.fullName?.charAt(0).toUpperCase() || "M"}
+  </span>
+</div>
               <div className="min-w-0">
                 <p className="font-bold text-gray-900 dark:text-white flex items-center gap-2 truncate">
                   {member.fullName}

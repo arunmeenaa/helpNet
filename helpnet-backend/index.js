@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require("path");
 const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
@@ -28,6 +29,7 @@ const io = new Server(server, {
 });
 app.set('io', io);
 // 3. MIDDLEWARE
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(cors({
   origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
   credentials: true
