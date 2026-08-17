@@ -1,69 +1,109 @@
-const express = require('express');
-const path = require("path");
-const mongoose = require('mongoose');
-const cors = require('cors');
-const passport = require('passport');
-const http = require('http'); 
-const { Server } = require('socket.io'); 
-require('dotenv').config();
+require("dotenv").config();
 
-// 1. IMPORT ALL ROUTES AT THE TOP
-const authRoutes = require('./routes/auth');
-const adminRoutes = require("./routes/admin");
-const requestRoutes = require('./routes/requests');
-const offerRoutes = require('./routes/offers');
-const messageRoutes = require('./routes/messages');
-const profileRoutes = require('./routes/profile');
+const express = require("express");
+const path = require("path");
+const cors = require("cors");
+const passport = require("passport");
+const http = require("http");
+const { Server } = require("socket.io");
+
+
+const connectDB = require("./config/db");
+
+require("./config/passport");
+
+const authRoutes = require("./routes/authRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+const requestRoutes = require("./routes/requestRoutes");
+const offerRoutes = require("./routes/offerRoutes");
+const messageRoutes = require("./routes/messageRoutes");
+const profileRoutes = require("./routes/profileRoutes");
+
+
+const setupSocket = require("./socket/socket");
 
 
 const app = express();
-const server = http.createServer(app); 
+const server = http.createServer(app);
 
-// 2. INITIALIZE SOCKET.IO
+
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
     methods: ["GET", "POST"],
-    credentials: true
-  }
+    credentials: true,
+  },
 });
-app.set('io', io);
-// 3. MIDDLEWARE
+
+app.set("io", io);
+
+setupSocket(io);
+
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use(cors({
-  origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
-  credentials: true
-}));
+
+// CORS
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
+    credentials: true,
+  }),
+);
+
+// Parse JSON
 app.use(express.json());
-app.use(passport.initialize()); 
 
-// 4. MOUNT ROUTES (Organized)
-app.use('/api/auth', authRoutes);
-app.use('/api/requests', requestRoutes);
-app.use('/api/offers', offerRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/profile', profileRoutes);
-app.use('/api/admin', adminRoutes);
+// Passport
+app.use(passport.initialize());
 
-// 5. SOCKET CONNECTION LOGIC
-io.on('connection', (socket) => {
- // console.log('⚡ User connected:', socket.id);
-  socket.on('join_room', (userId) => {
-    socket.join(userId);
-  });
-  socket.on('send_message', (data) => {
-    socket.to(data.receiverId).emit('receive_message', data);
+// ================= ROUTES =================
+
+app.use("/api/auth", authRoutes);
+
+app.use("/api/requests", requestRoutes);
+
+app.use("/api/offers", offerRoutes);
+
+app.use("/api/messages", messageRoutes);
+
+app.use("/api/profile", profileRoutes);
+
+app.use("/api/admin", adminRoutes);
+
+// ================= HEALTH CHECK =================
+
+app.get("/", (req, res) => {
+  res.json({
+    message: "HelpNet Backend API is running",
+    status: "OK",
   });
 });
 
-// 6. DATABASE CONNECTION
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ Successfully connected to MongoDB!"))
-  .catch((err) => console.log("❌ MongoDB connection error:", err));
+// ================= 404 HANDLER =================
 
-// 7. START SERVER
+app.use((req, res) => {
+  res.status(404).json({
+    message: "API route not found",
+  });
+});
+
+// ================= START SERVER =================
+
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Real-time Server running on port ${PORT}`);
-});
 
+const startServer = async () => {
+  try {
+    // Connect to MongoDB first
+    await connectDB();
+
+    // Start HTTP + Socket.IO server
+    server.listen(PORT, () => {
+      console.log(`🚀 HelpNet server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server:", error);
+
+    process.exit(1);
+  }
+};
+
+startServer();

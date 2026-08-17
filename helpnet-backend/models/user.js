@@ -1,61 +1,101 @@
 const mongoose = require("mongoose");
 
-const UserSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: true,
-    trim: true
+const UserSchema = new mongoose.Schema(
+  {
+    // ==========================================
+    // BASIC INFORMATION
+    // ==========================================
+    fullName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+
+    // ==========================================
+    // AUTHENTICATION
+    // ==========================================
+    password: {
+      type: String,
+    },
+
+    googleId: {
+      type: String,
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: true,
+    },
+
+    // ==========================================
+    // ROLE
+    // ==========================================
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+
+    // ==========================================
+    // APARTMENT
+    // ==========================================
+    apartmentId: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+    },
+
+    isEvicted: {
+      type: Boolean,
+      default: false,
+    },
+
+    // ==========================================
+    // PROFILE
+    // ==========================================
+    location: {
+      type: String,
+      trim: true,
+    },
+
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: "",
+    },
+
+    profilePic: {
+      type: String,
+      default: "",
+    },
   },
-role: {
-  type: String,
-  enum: ["user", "admin"],
-  default: "user"
-},
+  {
+    timestamps: true,
+  }
+);
 
+// ==========================================
+// INDEXES
+// ==========================================
 
-  apartmentId: {
-    type: String,
-    default: null,
-    trim: true,
-    lowercase: true
-  },
+UserSchema.index({
+  apartmentId: 1,
+});
 
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true
-  },
+// ==========================================
+// EXPORT
+// ==========================================
 
-  password: {
-    type: String,
-  },
-
-  location: {
-    type: String,
-  },
-
-  googleId: {
-    type: String,
-  },
-
-  isVerified: {
-    type: Boolean,
-    default: true,
-  },
-
-isEvicted: {
-    type: Boolean,
-    default: false
-  },
-  profilePic: {
-  type: String,
-  default: "" // Stores the file path or URL (e.g., "/uploads/profile-12345.jpg")
-}
-}, { timestamps: true });
-
-// ✅ Index for fast filtering
-UserSchema.index({ apartmentId: 1 });
-
-module.exports = mongoose.models.User || mongoose.model("User", UserSchema);
+module.exports =
+  mongoose.models.User ||
+  mongoose.model("User", UserSchema);

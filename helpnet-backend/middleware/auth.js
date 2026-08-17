@@ -1,46 +1,118 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/user');
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
-// 1. The Authentication Middleware
+// ==========================================
+// AUTHENTICATION MIDDLEWARE
+// ==========================================
 const auth = async (req, res, next) => {
-  const authHeader = req.header('Authorization');
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No token, authorization denied' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).lean();
+    const authHeader =
+      req.header("Authorization");
 
-    if (!user) {
-      return res.status(401).json({ message: 'User not found' });
+    // ==========================================
+    // CHECK AUTH HEADER
+    // ==========================================
+    if (
+      !authHeader ||
+      !authHeader.startsWith("Bearer ")
+    ) {
+      return res.status(401).json({
+        message:
+          "No token, authorization denied",
+      });
     }
 
+    const token =
+      authHeader.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        message:
+          "No token, authorization denied",
+      });
+    }
+
+    // ==========================================
+    // VERIFY TOKEN
+    // ==========================================
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    if (!decoded.id) {
+      return res.status(401).json({
+        message: "Invalid token",
+      });
+    }
+
+    // ==========================================
+    // GET FRESH USER FROM DATABASE
+    // ==========================================
+    const user = await User.findById(
+      decoded.id
+    ).lean();
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User not found",
+      });
+    }
+
+    // ==========================================
+    // ATTACH FRESH USER DATA
+    // ==========================================
     req.user = {
       id: user._id,
-      role: user.role,
-      apartmentId: user.apartmentId?.trim() || null,
-      isEvicted: user.isEvicted 
+      role: user.role || "user",
+
+      apartmentId:
+        user.apartmentId
+          ?.trim()
+          .toLowerCase() || null,
+
+      isEvicted:
+        user.isEvicted || false,
     };
 
     next();
-  } catch (err) {
-    res.status(401).json({ message: 'Token is not valid or has expired' });
+  } catch (error) {
+    console.error(
+      "Authentication error:",
+      error.message
+    );
+
+    if (error.name === "TokenExpiredError") {
+      return res.status(401).json({
+        message: "Token has expired",
+      });
+    }
+
+    return res.status(401).json({
+      message:
+        "Token is not valid or has expired",
+    });
   }
 };
 
-// 2. The Admin Check Middleware
+// ==========================================
+// ADMIN AUTHORIZATION
+// ==========================================
 const isAdmin = (req, res, next) => {
-  // We rely on 'auth' running first to set req.user
-  if (req.user && req.user.role === 'admin') {
-    next();
-  } else {
-    res.status(403).json({ message: "Access denied. Admins only." });
+  if (
+    req.user &&
+    req.user.role === "admin"
+  ) {
+    return next();
   }
+
+  return res.status(403).json({
+    message:
+      "Access denied. Admins only.",
+  });
 };
 
-// 3. Export BOTH functions so the route file can find them
-module.exports = { auth, isAdmin };
+module.exports = {
+  auth,
+  isAdmin,
+};
