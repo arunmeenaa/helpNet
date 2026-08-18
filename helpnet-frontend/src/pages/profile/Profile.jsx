@@ -6,7 +6,7 @@ import API_URL from "../../api";
 import { getCurrentUser, updateProfile } from "../../services/authService";
 import { getMyRequests } from "../../services/requestService";
 import { getMyOffers } from "../../services/offerService";
-import { uploadOwnerProfilePicture } from "../../services/ownerService";
+import { uploadProfilePicture } from "../../services/ownerService";
 import { uploadUserProfilePicture } from "../../services/profileService";
 import { toast } from "react-hot-toast";
 import { Mail, ArrowLeft, Calendar, Camera, Eye } from "lucide-react";

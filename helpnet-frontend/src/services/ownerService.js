@@ -69,7 +69,7 @@ export const uploadProfilePicture = async (file) => {
   if (!response.ok) {
     if (contentType?.includes("application/json")) {
       const data = await response.json();
-      throw new Error(data.message || "Upload failed");
+      throw new Error(data.message || "Owner profile upload failed.");
     }
 
     throw new Error(
