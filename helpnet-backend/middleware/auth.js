@@ -6,8 +6,7 @@ const User = require("../models/User");
 // ==========================================
 const auth = async (req, res, next) => {
   try {
-    const authHeader =
-      req.header("Authorization");
+    const authHeader = req.header("Authorization");
 
     // ==========================================
     // CHECK AUTH HEADER
@@ -17,18 +16,15 @@ const auth = async (req, res, next) => {
       !authHeader.startsWith("Bearer ")
     ) {
       return res.status(401).json({
-        message:
-          "No token, authorization denied",
+        message: "No token, authorization denied",
       });
     }
 
-    const token =
-      authHeader.split(" ")[1];
+    const token = authHeader.split(" ")[1];
 
     if (!token) {
       return res.status(401).json({
-        message:
-          "No token, authorization denied",
+        message: "No token, authorization denied",
       });
     }
 
@@ -64,7 +60,9 @@ const auth = async (req, res, next) => {
     // ==========================================
     req.user = {
       id: user._id,
-      role: user.role || "user",
+
+      // New role terminology
+      role: user.role || "resident",
 
       apartmentId:
         user.apartmentId
@@ -76,6 +74,7 @@ const auth = async (req, res, next) => {
     };
 
     next();
+
   } catch (error) {
     console.error(
       "Authentication error:",
@@ -96,23 +95,23 @@ const auth = async (req, res, next) => {
 };
 
 // ==========================================
-// ADMIN AUTHORIZATION
+// OWNER AUTHORIZATION
 // ==========================================
-const isAdmin = (req, res, next) => {
+const isOwner = (req, res, next) => {
   if (
     req.user &&
-    req.user.role === "admin"
+    req.user.role === "owner"
   ) {
     return next();
   }
 
   return res.status(403).json({
     message:
-      "Access denied. Admins only.",
+      "Access denied. Apartment owners only.",
   });
 };
 
 module.exports = {
   auth,
-  isAdmin,
+  isOwner,
 };

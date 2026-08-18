@@ -10,106 +10,38 @@ const {
   rejectJoinRequest,
   getPendingJoinRequests,
   approveJoinRequest,
+  getMyApartment,
 } = require("../controllers/adminController");
 
-const { auth, isAdmin } = require("../middleware/auth");
+const { auth, isOwner } = require("../middleware/auth");
 const upload = require("../middleware/upload");
 
 const router = express.Router();
 
-// ==========================================
-// PROFILE PICTURE
-// ==========================================
 router.post(
   "/upload-profile-pic",
   auth,
+  isOwner,
   upload.single("profilePic"),
   uploadProfilePic
 );
 
-// ==========================================
-// CREATE APARTMENT
-// ==========================================
-router.post(
-  "/create-apartment",
-  auth,
-  createApartment
-);
+router.get("/my-apartment", auth, isOwner, getMyApartment);
 
-// ==========================================
-// GET USER PROFILE
-// ADMIN ONLY
-// ==========================================
-router.get(
-  "/user/:id",
-  auth,
-  isAdmin,
-  getUserProfile
-);
+router.post("/create-apartment", auth, isOwner, createApartment);
 
-// ==========================================
-// GET MEMBERS
-// ADMIN ONLY
-// ==========================================
-router.get(
-  "/members",
-  auth,
-  isAdmin,
-  getMembers
-);
+router.get("/user/:id", auth, isOwner, getUserProfile);
 
-// ==========================================
-// REMOVE USER
-// ADMIN ONLY
-// ==========================================
-router.delete(
-  "/remove-user/:id",
-  auth,
-  isAdmin,
-  removeUser
-);
+router.get("/members", auth, isOwner, getMembers);
 
-// ==========================================
-// CREATE JOIN REQUEST
-// NORMAL USER
-// ==========================================
-router.post(
-  "/join-requests",
-  auth,
-  createJoinRequest
-);
+router.delete("/remove-user/:id", auth, isOwner, removeUser);
 
-// ==========================================
-// REJECT JOIN REQUEST
-// ADMIN ONLY
-// ==========================================
-router.delete(
-  "/reject-join",
-  auth,
-  isAdmin,
-  rejectJoinRequest
-);
+router.post("/join-requests", auth, createJoinRequest);
 
-// ==========================================
-// GET PENDING JOIN REQUESTS
-// ADMIN ONLY
-// ==========================================
-router.get(
-  "/join-requests",
-  auth,
-  isAdmin,
-  getPendingJoinRequests
-);
+router.delete("/reject-join", auth, isOwner, rejectJoinRequest);
 
-// ==========================================
-// APPROVE JOIN REQUEST
-// ADMIN ONLY
-// ==========================================
-router.post(
-  "/approve-join",
-  auth,
-  isAdmin,
-  approveJoinRequest
-);
+router.get("/join-requests", auth, isOwner, getPendingJoinRequests);
+
+router.post("/approve-join", auth, isOwner, approveJoinRequest);
 
 module.exports = router;

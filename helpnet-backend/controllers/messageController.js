@@ -3,10 +3,7 @@ const Message = require("../models/Message");
 const User = require("../models/User");
 const Request = require("../models/Request");
 const Offer = require("../models/Offer");
-// ==========================================
-// GET UNREAD COUNT
-// GET /api/messages/unread-count
-// ==========================================
+
 const getUnreadCount = async (req, res) => {
   try {
     if (!req.user.apartmentId) {
@@ -29,138 +26,67 @@ const getUnreadCount = async (req, res) => {
   }
 };
 
-// ==========================================
-// SEND MESSAGE
-// POST /api/messages/send
-// ==========================================
 const sendMessage = async (req, res) => {
   try {
-    const {
-      receiverId,
-      content,
-      relatedPostId,
-      postTitle,
-      postType,
-    } = req.body;
+    const { receiverId, content, relatedPostId, postTitle, postType } =
+      req.body;
 
-    // ==========================================
-    // APARTMENT CHECK
-    // ==========================================
     if (!req.user.apartmentId) {
       return res.status(400).json({
-        message:
-          "Please join an apartment community first.",
+        message: "Please join an apartment community first.",
       });
     }
 
-    // ==========================================
-    // CONTENT VALIDATION
-    // ==========================================
-    if (
-      !content ||
-      content.trim().length === 0
-    ) {
+    if (!content || !content.trim()) {
       return res.status(400).json({
         message: "Message cannot be empty.",
       });
     }
 
-    // ==========================================
-    // RECEIVER ID
-    // ==========================================
     const cleanReceiverId =
-      typeof receiverId === "object"
-        ? receiverId.id
-        : receiverId;
+      typeof receiverId === "object" ? receiverId.id : receiverId;
 
-    if (
-      !cleanReceiverId ||
-      !mongoose.Types.ObjectId.isValid(
-        cleanReceiverId
-      )
-    ) {
+    if (!cleanReceiverId || !mongoose.Types.ObjectId.isValid(cleanReceiverId)) {
       return res.status(400).json({
         message: "Invalid receiver ID.",
       });
     }
 
-    // ==========================================
-    // PREVENT SELF CHAT
-    // ==========================================
-    if (
-      cleanReceiverId.toString() ===
-      req.user.id.toString()
-    ) {
+    if (cleanReceiverId.toString() === req.user.id.toString()) {
       return res.status(400).json({
-        message:
-          "You cannot send a message to yourself.",
+        message: "You cannot send a message to yourself.",
       });
     }
 
-    // ==========================================
-    // POST TYPE
-    // ==========================================
-    const allowedPostTypes = [
-      "request",
-      "offer",
-      "general",
-    ];
+    const allowedPostTypes = ["request", "offer", "general"];
 
-    const cleanPostType =
-      postType || "general";
+    const cleanPostType = postType || "general";
 
-    if (
-      !allowedPostTypes.includes(
-        cleanPostType
-      )
-    ) {
+    if (!allowedPostTypes.includes(cleanPostType)) {
       return res.status(400).json({
         message: "Invalid post type.",
       });
     }
 
-    // ==========================================
-    // GENERAL CHAT
-    // ==========================================
-    if (
-      cleanPostType === "general" &&
-      relatedPostId
-    ) {
+    if (cleanPostType === "general" && relatedPostId) {
       return res.status(400).json({
-        message:
-          "General conversations cannot have a post ID.",
+        message: "General conversations cannot have a post ID.",
       });
     }
 
-    // ==========================================
-    // REQUEST / OFFER ID
-    // ==========================================
-    if (
-      cleanPostType !== "general" &&
-      !relatedPostId
-    ) {
+    if (cleanPostType !== "general" && !relatedPostId) {
       return res.status(400).json({
-        message:
-          "A request or offer ID is required.",
+        message: "A request or offer ID is required.",
       });
     }
 
-    if (
-      relatedPostId &&
-      !mongoose.Types.ObjectId.isValid(
-        relatedPostId
-      )
-    ) {
+    if (relatedPostId && !mongoose.Types.ObjectId.isValid(relatedPostId)) {
       return res.status(400).json({
         message: "Invalid post ID.",
       });
     }
 
-    // ==========================================
-    // FIND RECEIVER
-    // ==========================================
-    const receiverUser =
-      await User.findById(cleanReceiverId);
+    const receiverUser = await User.findById(cleanReceiverId);
 
     if (!receiverUser) {
       return res.status(404).json({
@@ -168,32 +94,16 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // APARTMENT ISOLATION
-    // ==========================================
-    if (
-      receiverUser.apartmentId !==
-      req.user.apartmentId
-    ) {
+    if (receiverUser.apartmentId !== req.user.apartmentId) {
       return res.status(403).json({
-        message:
-          "Users must be in the same apartment to chat.",
+        message: "Users must be in the same apartment to chat.",
       });
     }
 
-    // ==========================================
-    // VERIFY RELATED POST
-    // ==========================================
-
     let relatedPost = null;
 
-    if (
-      cleanPostType === "request"
-    ) {
-      relatedPost =
-        await Request.findById(
-          relatedPostId
-        );
+    if (cleanPostType === "request") {
+      relatedPost = await Request.findById(relatedPostId);
 
       if (!relatedPost) {
         return res.status(404).json({
@@ -202,13 +112,8 @@ const sendMessage = async (req, res) => {
       }
     }
 
-    if (
-      cleanPostType === "offer"
-    ) {
-      relatedPost =
-        await Offer.findById(
-          relatedPostId
-        );
+    if (cleanPostType === "offer") {
+      relatedPost = await Offer.findById(relatedPostId);
 
       if (!relatedPost) {
         return res.status(404).json({
@@ -217,89 +122,45 @@ const sendMessage = async (req, res) => {
       }
     }
 
-    // ==========================================
-    // POST MUST BELONG TO SAME APARTMENT
-    // ==========================================
-    if (
-      relatedPost &&
-      relatedPost.apartmentId !==
-        req.user.apartmentId
-    ) {
+    if (relatedPost && relatedPost.apartmentId !== req.user.apartmentId) {
       return res.status(403).json({
-        message:
-          "You cannot message users about posts from another apartment.",
+        message: "You cannot message users about posts from another apartment.",
       });
     }
 
-    // ==========================================
-    // CREATE MESSAGE
-    // ==========================================
     const newMessage = new Message({
       sender: req.user.id,
-
       receiver: cleanReceiverId,
-
       content: content.trim(),
-
-      apartmentId:
-        req.user.apartmentId,
-
+      apartmentId: req.user.apartmentId,
       postType: cleanPostType,
 
-      relatedPostId:
-        cleanPostType === "general"
-          ? null
-          : relatedPostId,
+      relatedPostId: cleanPostType === "general" ? null : relatedPostId,
 
       postTitle:
         cleanPostType === "general"
           ? "General Inquiry"
-          : (
-              postTitle?.trim() ||
-              relatedPost.title
-            ),
+          : postTitle?.trim() || relatedPost?.title || "Untitled Post",
     });
 
-    const savedMessage =
-      await newMessage.save();
+    const savedMessage = await newMessage.save();
 
-    // ==========================================
-    // REAL-TIME NOTIFICATION
-    // ==========================================
     const io = req.app.get("io");
 
     if (io) {
-      const receiverRoom =
-        cleanReceiverId.toString();
-
-      io.to(receiverRoom).emit(
-        "receive_message",
-        savedMessage
-      );
+      io.to(cleanReceiverId.toString()).emit("receive_message", savedMessage);
     }
 
-    // ==========================================
-    // RESPONSE
-    // ==========================================
-    res.status(201).json(
-      savedMessage
-    );
+    return res.status(201).json(savedMessage);
   } catch (error) {
-    console.error(
-      "SEND MESSAGE ERROR:",
-      error
-    );
+    console.error("SEND MESSAGE ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server Error",
     });
   }
 };
 
-// ==========================================
-// GET MY INBOX
-// GET /api/messages/inbox
-// ==========================================
 const getInbox = async (req, res) => {
   try {
     if (!req.user.apartmentId) {
@@ -317,10 +178,7 @@ const getInbox = async (req, res) => {
 
     res.json(messages);
   } catch (error) {
-    console.error(
-      "INBOX ERROR:",
-      error.message
-    );
+    console.error("INBOX ERROR:", error.message);
 
     res.status(500).json({
       message: "Server Error",
@@ -328,32 +186,14 @@ const getInbox = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET CONVERSATION
-//
-// GET
-// /api/messages/conversation/:otherUserId/:postType/:postId
-//
-// Example:
-// /conversation/USER_ID/request/REQUEST_ID
-// /conversation/USER_ID/offer/OFFER_ID
-// ==========================================
 const getConversation = async (req, res) => {
   try {
-    const {
-      otherUserId,
-      postType,
-      postId,
-    } = req.params;
+    const { otherUserId, postType, postId } = req.params;
 
     // ==========================================
     // VALIDATE USER ID
     // ==========================================
-    if (
-      !mongoose.Types.ObjectId.isValid(
-        otherUserId
-      )
-    ) {
+    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
       return res.status(400).json({
         message: "Invalid user ID",
       });
@@ -362,9 +202,7 @@ const getConversation = async (req, res) => {
     // ==========================================
     // VALIDATE POST TYPE
     // ==========================================
-    if (
-      !["request", "offer"].includes(postType)
-    ) {
+    if (!["request", "offer"].includes(postType)) {
       return res.status(400).json({
         message: "Invalid post type",
       });
@@ -373,9 +211,7 @@ const getConversation = async (req, res) => {
     // ==========================================
     // VALIDATE POST ID
     // ==========================================
-    if (
-      !mongoose.Types.ObjectId.isValid(postId)
-    ) {
+    if (!mongoose.Types.ObjectId.isValid(postId)) {
       return res.status(400).json({
         message: "Invalid post ID",
       });
@@ -393,9 +229,7 @@ const getConversation = async (req, res) => {
     // ==========================================
     // FIND OTHER USER
     // ==========================================
-    const otherUser = await User.findById(
-      otherUserId
-    ).lean();
+    const otherUser = await User.findById(otherUserId).lean();
 
     if (!otherUser) {
       return res.status(404).json({
@@ -406,13 +240,9 @@ const getConversation = async (req, res) => {
     // ==========================================
     // APARTMENT ISOLATION
     // ==========================================
-    if (
-      otherUser.apartmentId !==
-      req.user.apartmentId
-    ) {
+    if (otherUser.apartmentId !== req.user.apartmentId) {
       return res.status(403).json({
-        message:
-          "Users must be in the same apartment to chat.",
+        message: "Users must be in the same apartment to chat.",
       });
     }
 
@@ -443,10 +273,7 @@ const getConversation = async (req, res) => {
 
     res.json(messages);
   } catch (error) {
-    console.error(
-      "CONVERSATION ERROR:",
-      error.message
-    );
+    console.error("CONVERSATION ERROR:", error.message);
 
     res.status(500).json({
       message: "Server Error",
@@ -454,10 +281,6 @@ const getConversation = async (req, res) => {
   }
 };
 
-// ==========================================
-// MARK MESSAGE AS READ
-// PATCH /api/messages/:id/read
-// ==========================================
 const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
@@ -477,20 +300,14 @@ const markAsRead = async (req, res) => {
     }
 
     // Only receiver can mark it as read
-    if (
-      message.receiver.toString() !==
-      req.user.id.toString()
-    ) {
+    if (message.receiver.toString() !== req.user.id.toString()) {
       return res.status(401).json({
         message: "Not authorized",
       });
     }
 
     // Apartment isolation
-    if (
-      message.apartmentId !==
-      req.user.apartmentId
-    ) {
+    if (message.apartmentId !== req.user.apartmentId) {
       return res.status(403).json({
         message: "Access denied",
       });
@@ -502,10 +319,7 @@ const markAsRead = async (req, res) => {
 
     res.json(message);
   } catch (error) {
-    console.error(
-      "Mark as read error:",
-      error.message
-    );
+    console.error("Mark as read error:", error.message);
 
     res.status(500).json({
       message: "Server Error",

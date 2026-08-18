@@ -10,7 +10,7 @@ const generateToken = require("../utils/generateToken");
 // ==========================================
 const register = async (req, res) => {
   try {
-    const { fullName, email, password, location } = req.body;
+    const { fullName, email, password, location, role } = req.body;
 
     // ==========================================
     // VALIDATION
@@ -18,6 +18,13 @@ const register = async (req, res) => {
     if (!fullName || !email || !password) {
       return res.status(400).json({
         message: "Full name, email and password are required",
+      });
+    }
+
+    // Only these two roles are allowed
+    if (!["resident", "owner"].includes(role)) {
+      return res.status(400).json({
+        message: "Invalid registration role",
       });
     }
 
@@ -50,10 +57,15 @@ const register = async (req, res) => {
       fullName: fullName.trim(),
       email: normalizedEmail,
       password: hashedPassword,
+
       location: location ? location.trim() : "",
+
       apartmentId: null,
+
       isVerified: true,
-      role: "user",
+
+      role: role,
+
       isEvicted: false,
     });
 
@@ -68,6 +80,11 @@ const register = async (req, res) => {
     // RESPONSE
     // ==========================================
     res.status(201).json({
+      message:
+        role === "owner"
+          ? "Apartment owner registered successfully"
+          : "Resident registered successfully",
+
       token,
 
       user: {
@@ -95,9 +112,6 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // ==========================================
-    // VALIDATION
-    // ==========================================
     if (!email || !password) {
       return res.status(400).json({
         message: "Email and password are required",
@@ -106,9 +120,6 @@ const login = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // ==========================================
-    // FIND USER
-    // ==========================================
     const user = await User.findOne({
       email: normalizedEmail,
     });
@@ -119,18 +130,13 @@ const login = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // GOOGLE ACCOUNT CHECK
-    // ==========================================
+    // Google account
     if (!user.password) {
       return res.status(400).json({
         message: "This account uses Google login. Please continue with Google.",
       });
     }
 
-    // ==========================================
-    // PASSWORD CHECK
-    // ==========================================
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
@@ -140,13 +146,16 @@ const login = async (req, res) => {
     }
 
     // ==========================================
-    // GENERATE TOKEN
+    // EVICTED RESIDENT CHECK
     // ==========================================
+    if (user.role === "resident" && user.isEvicted) {
+      return res.status(403).json({
+        message: "Your account has been removed from the apartment community.",
+      });
+    }
+
     const token = generateToken(user);
 
-    // ==========================================
-    // RESPONSE
-    // ==========================================
     res.json({
       token,
 
@@ -156,6 +165,7 @@ const login = async (req, res) => {
         email: user.email,
         apartmentId: user.apartmentId || null,
         role: user.role,
+        isEvicted: user.isEvicted,
       },
     });
   } catch (error) {
@@ -208,17 +218,13 @@ const setApartment = async (req, res) => {
     // ==========================================
     // VALIDATE INPUT
     // ==========================================
-    if (
-      !apartmentId ||
-      apartmentId.trim().length < 2
-    ) {
+    if (!apartmentId || apartmentId.trim().length < 2) {
       return res.status(400).json({
         message: "Apartment ID is required.",
       });
     }
 
-    const cleanApartmentId =
-      apartmentId.trim().toLowerCase();
+    const cleanApartmentId = apartmentId.trim().toLowerCase();
 
     // ==========================================
     // CHECK IF APARTMENT EXISTS
@@ -229,17 +235,14 @@ const setApartment = async (req, res) => {
 
     if (!apartment) {
       return res.status(404).json({
-        message:
-          "Apartment not found. Please enter a valid apartment ID.",
+        message: "Apartment not found. Please enter a valid apartment ID.",
       });
     }
 
     // ==========================================
     // FIND USER
     // ==========================================
-    const user = await User.findById(
-      req.user.id
-    );
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({
@@ -247,7 +250,6 @@ const setApartment = async (req, res) => {
       });
     }
 
-  
     user.apartmentId = cleanApartmentId;
     user.isEvicted = false;
 
@@ -262,8 +264,7 @@ const setApartment = async (req, res) => {
     // RESPONSE
     // ==========================================
     return res.json({
-      message:
-        "Apartment found and assigned successfully.",
+      message: "Apartment found and assigned successfully.",
       token,
       apartmentId: user.apartmentId,
       apartment: {
@@ -273,10 +274,7 @@ const setApartment = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(
-      "Set apartment error:",
-      error
-    );
+    console.error("Set apartment error:", error);
 
     return res.status(500).json({
       message: "Server Error",

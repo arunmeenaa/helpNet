@@ -3,39 +3,23 @@ const express = require("express");
 const {
   getProfile,
   setApartment,
-  updateProfile,
+  
 } = require("../controllers/profileController");
-
+const { uploadProfilePic } = require("../controllers/adminController");
+const upload = require("../middleware/upload");
 const { auth } = require("../middleware/auth");
 
 const router = express.Router();
 
-// ==========================================
-// GET MY PROFILE
-// ==========================================
-router.get(
-  "/me",
-  auth,
-  getProfile
-);
+router.get("/me", auth, getProfile);
 
-// ==========================================
-// SET APARTMENT
-// ==========================================
-// Kept for existing frontend compatibility.
-router.patch(
-  "/set-apartment",
-  auth,
-  setApartment
-);
+router.patch("/set-apartment", auth, setApartment);
 
-// ==========================================
-// UPDATE PROFILE
-// ==========================================
-router.patch(
-  "/",
+router.post(
+  "/upload-profile-pic",
   auth,
-  updateProfile
+  upload.single("profilePic"),
+  uploadProfilePic,
 );
 
 module.exports = router;

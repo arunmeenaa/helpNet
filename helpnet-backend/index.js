@@ -7,7 +7,6 @@ const passport = require("passport");
 const http = require("http");
 const { Server } = require("socket.io");
 
-
 const connectDB = require("./config/db");
 
 require("./config/passport");
@@ -19,13 +18,10 @@ const offerRoutes = require("./routes/offerRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 
-
 const setupSocket = require("./socket/socket");
-
 
 const app = express();
 const server = http.createServer(app);
-
 
 const io = new Server(server, {
   cors: {
@@ -50,7 +46,14 @@ app.use(
 );
 
 // Parse JSON
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: "10mb",
+  })
+);
 
 // Passport
 app.use(passport.initialize());
