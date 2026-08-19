@@ -48,18 +48,27 @@ const currentUser = token ? jwtDecode(token) : null;
 const handleSendMessage = async (e) => {
   e.preventDefault();
 
-  if (!messageContent.trim()) return;
+  if (!messageContent.trim() || !offer?.author?._id || !offer?._id) {
+    return;
+  }
 
   setIsSending(true);
   setSendStatus(null);
 
   try {
-    await sendMessage({
+    const messageData = {
       receiverId: offer.author._id,
       content: messageContent.trim(),
       relatedPostId: offer._id,
       postTitle: offer.title,
-    });
+      postType: "offer",
+    };
+
+    
+  
+    
+
+    await sendMessage(messageData);
 
     setSendStatus("success");
     setMessageContent("");
@@ -67,13 +76,12 @@ const handleSendMessage = async (e) => {
     setTimeout(() => {
       setShowMsgForm(false);
       setSendStatus(null);
-    }, 3000);
+    }, 2000);
 
   } catch (err) {
     console.error("SEND MESSAGE ERROR:", err);
 
     setSendStatus("error");
-
   } finally {
     setIsSending(false);
   }

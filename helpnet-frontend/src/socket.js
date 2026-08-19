@@ -20,7 +20,7 @@ export const joinSocketRoom = () => {
       const decoded = jwtDecode(token);
       if (decoded.id) {
         socket.emit("join_room", decoded.id);
-        console.log("Joined socket room:", decoded.id);
+       
       }
     } catch (error) {
       console.error("Socket room join error:", error);

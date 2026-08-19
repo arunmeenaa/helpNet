@@ -1,17 +1,46 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/layout/Footer";
 import { getRequests } from "../../services/requestService";
+import { getInbox } from "../../services/messageService";
 import socket from "../../socket";
 import SkeletonCard from "../../components/common/SkeletonCard";
 import { jwtDecode } from "jwt-decode";
-import { LogIn, Search, ShieldAlert } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  HandHeart,
+  LogIn,
+  MapPin,
+  MessageSquare,
+  Search,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
+
+const getId = (value) => {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value._id || value.id || null;
+};
+
+const sameId = (first, second) =>
+  first != null && second != null && String(first) === String(second);
+
+const normalizePriority = (value) => {
+  const priority = String(value || "").trim().toLowerCase();
+
+  if (priority === "high") return "High";
+  if (priority === "medium" || priority === "moderate") return "Medium";
+  if (priority === "low") return "Low";
+
+  return "Low";
+};
 
 export default function RequestsFeed() {
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
+  const [activeConversations, setActiveConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,31 +48,26 @@ export default function RequestsFeed() {
 
   const token = localStorage.getItem("token");
   const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const apartmentId = storedUser.apartmentId;
+  const apartmentId = storedUser?.apartmentId;
 
-  const isOwner = storedUser?.role === "owner";
-  // 💡 FIXED: Define currentUserId here so it is available to the entire component
   const decodedToken = token ? jwtDecode(token) : null;
-  const currentUserId = decodedToken?.id || decodedToken?.sub;
+  const currentUserId = decodedToken?.id || decodedToken?.sub || getId(storedUser);
 
   // ==========================================
-  // 🚨 GUEST GUARD (Premium Glassmorphism Alert)
+  // 🚨 GUEST GUARD
   // ==========================================
   if (!token) {
     return (
       <div className="min-h-screen flex flex-col bg-white dark:bg-gray-950 transition-colors duration-300">
         <Navbar />
         <main className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
-          {/* Animated Background Blurs */}
           <div className="absolute top-1/3 -left-20 w-80 h-80 bg-purple-600/10 rounded-full blur-[100px] pointer-events-none animate-pulse" />
           <div className="absolute bottom-1/3 -right-20 w-80 h-80 bg-blue-600/10 rounded-full blur-[100px] pointer-events-none" />
 
           <div className="max-w-md w-full relative group">
-            {/* Outer Glow Effect */}
             <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-500 rounded-[2.6rem] blur opacity-20 group-hover:opacity-30 transition duration-1000"></div>
 
             <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-10 md:p-12 border border-white/20 dark:border-gray-800/50 text-center animate-in fade-in zoom-in duration-700">
-              {/* Centered Security Icon */}
               <div className="relative w-24 h-24 mx-auto mb-8">
                 <div className="absolute inset-0 bg-purple-500/20 rounded-3xl -rotate-6 animate-pulse"></div>
                 <div className="relative w-full h-full bg-gradient-to-br from-purple-600 to-indigo-600 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-purple-500/40">
@@ -93,22 +117,49 @@ export default function RequestsFeed() {
   // ==========================================
   // 👤 FETCH LOGIC
   // ==========================================
-  // 1. Move fetchRequests out of the open hook so it can be called anywhere
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     if (!apartmentId) {
       setLoading(false);
       return;
     }
 
     try {
-      const data = await getRequests();
+      // Fetch both community requests and active conversations simultaneously
+      const [requestsData, inboxResponse] = await Promise.allSettled([
+        getRequests(),
+        getInbox(),
+      ]);
 
-      setRequests(data);
+      if (requestsData.status === "fulfilled") {
+        setRequests(requestsData.value || []);
+      } else {
+        throw requestsData.reason;
+      }
+
+      if (inboxResponse.status === "fulfilled") {
+        const rawInbox = Array.isArray(inboxResponse.value)
+          ? inboxResponse.value
+          : inboxResponse.value?.messages || inboxResponse.value?.data || [];
+
+        // Extract related post/request IDs that current user is chatting about
+        const conversedPostIds = rawInbox
+          .map(
+            (msg) =>
+              msg.relatedPostId ||
+              msg.postId ||
+              msg.post?._id ||
+              msg.requestId ||
+              msg.offerId,
+          )
+          .filter(Boolean);
+
+        setActiveConversations(conversedPostIds.map(String));
+      }
+
       setError("");
     } catch (err) {
       console.error("FETCH REQUESTS ERROR:", err);
 
-      // Handle apartment eviction/removal
       if (
         err.message?.includes("removed") ||
         err.message?.includes("evicted")
@@ -128,7 +179,6 @@ export default function RequestsFeed() {
         };
 
         localStorage.setItem("user", JSON.stringify(updatedUser));
-
         window.dispatchEvent(new Event("local-storage-update"));
 
         setTimeout(() => {
@@ -142,33 +192,23 @@ export default function RequestsFeed() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apartmentId, navigate, storedUser]);
 
-  // 2. The streamlined Lifecycle hook handling initial load + live socket updates
   useEffect(() => {
-    // Run immediately on page mount
     fetchRequests();
 
-    // 🌟 REAL-TIME REFRESH LISTENER
     const handleFeedRefresh = () => {
-      console.log(
-        "🔄 Real-time event: Refreshing feed due to community update",
-      );
-      fetchRequests(); // Re-fetch the database items to discard removed user cards instantly
+      fetchRequests();
     };
 
-    // Bind listeners
     socket.on("feed_updated", handleFeedRefresh);
-    socket.on("user_removed", handleFeedRefresh); // Optional: handles instant removal cleanup too
+    socket.on("user_removed", handleFeedRefresh);
 
-    // Cleanup to prevent dangling event accumulation blocks
     return () => {
       socket.off("feed_updated", handleFeedRefresh);
       socket.off("user_removed", handleFeedRefresh);
     };
-
-    // Keep dependencies clean and optimized
-  }, [token, apartmentId, navigate]);
+  }, [fetchRequests]);
 
   if (!apartmentId) {
     navigate("/dashboard");
@@ -176,31 +216,40 @@ export default function RequestsFeed() {
   }
 
   const filteredRequests = requests.filter((req) => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const title = String(req.title || "").toLowerCase();
+    const location = String(req.location || "").toLowerCase();
     const matchesSearch =
-      req.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.location.toLowerCase().includes(searchQuery.toLowerCase());
+      !normalizedSearch ||
+      title.includes(normalizedSearch) ||
+      location.includes(normalizedSearch);
     const matchesPriority =
-      filterPriority === "All" || req.priority === filterPriority;
+      filterPriority === "All" ||
+      normalizePriority(req.priority) === filterPriority;
     return matchesSearch && matchesPriority;
   });
 
   const getPriorityStyles = (level) => {
-    if (level === "High")
-      return "bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20";
-    if (level === "Medium")
-      return "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20";
-    return "bg-green-50 text-green-600 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20";
+    const priority = normalizePriority(level);
+
+    if (priority === "High") {
+      return "border-red-200 bg-red-50 text-red-700 shadow-sm shadow-red-500/10 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400";
+    }
+
+    if (priority === "Medium") {
+      return "border-amber-200 bg-amber-50 text-amber-700 shadow-sm shadow-amber-500/10 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400";
+    }
+
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm shadow-emerald-500/10 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400";
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 relative overflow-hidden transition-colors duration-300">
       <Navbar />
 
-      {/* Decorative Background Glow */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-500/10 dark:bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
       <main className="flex-grow w-full max-w-7xl mx-auto px-6 py-12 relative z-10">
-        {/* Header Section */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
           <div className="max-w-2xl">
             <span className="px-4 py-1.5 text-xs font-bold tracking-widest text-blue-600 dark:text-cyan-400 uppercase bg-blue-100 dark:bg-cyan-900/30 rounded-full mb-4 inline-block">
@@ -232,7 +281,6 @@ export default function RequestsFeed() {
           </div>
         </div>
 
-        {/* State Handling */}
         {loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
@@ -253,100 +301,123 @@ export default function RequestsFeed() {
           </div>
         )}
 
-        {/* Requests Grid */}
         {!loading && !error && filteredRequests.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredRequests.map((req) => {
-              const isOwner =
-                currentUserId?.toString() ===
-                (req.author?._id?.toString() || req.author?.toString());
+              const authorId = getId(req.author);
+              const isOwner = sameId(currentUserId, authorId);
+              const hasMessaged = activeConversations.includes(
+                String(req._id),
+              );
 
               return (
                 <div
                   key={req._id}
-                  className={`group flex flex-col h-full rounded-3xl p-6 sm:p-8 transition-all duration-300 relative border ${
+                  className={`group relative flex h-full flex-col overflow-hidden rounded-[2rem] border p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl focus-within:ring-2 focus-within:ring-blue-500/50 sm:p-6 ${
                     isOwner
-                      ? "bg-blue-50/50 dark:bg-blue-900/10 border-blue-400 dark:border-blue-500 shadow-[0_0_25px_rgba(59,130,246,0.2)] ring-2 ring-blue-500/20"
-                      : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-xl"
+                      ? "border-blue-300 bg-gradient-to-br from-blue-50 via-white to-cyan-50 shadow-[0_12px_35px_rgba(59,130,246,0.16)] ring-1 ring-blue-500/20 dark:border-blue-500/50 dark:from-blue-950/50 dark:via-gray-900 dark:to-cyan-950/30"
+                      : "border-gray-200/80 bg-white/90 dark:border-gray-800 dark:bg-gray-900/90"
                   }`}
                 >
+                  <div
+                    className={`pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full blur-2xl transition-opacity duration-300 group-hover:opacity-100 ${
+                      isOwner
+                        ? "bg-blue-400/25 opacity-100"
+                        : "bg-cyan-400/15 opacity-0"
+                    }`}
+                  />
+
                   {isOwner && (
-                    <div className="absolute -top-3 left-6 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg uppercase tracking-widest z-20">
-                      Your Request
+                    <div className="absolute right-5 top-0 z-20 rounded-b-xl bg-blue-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-500/20">
+                      Yours
                     </div>
                   )}
 
-                  <div className="flex justify-between items-start mb-5">
-                    <div className="flex items-center gap-3">
+                  <div className="relative z-10 mb-6 flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black shadow-sm ${
                           isOwner
-                            ? "bg-blue-600 text-white shadow-md"
-                            : "bg-blue-100 dark:bg-gray-800 text-blue-600 dark:text-cyan-400"
+                            ? "bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-blue-500/25"
+                            : "border border-blue-100 bg-blue-50 text-blue-600 dark:border-cyan-900/50 dark:bg-cyan-950/40 dark:text-cyan-400"
                         }`}
                       >
                         {req.author?.fullName
                           ? req.author.fullName.charAt(0)
                           : "?"}
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-gray-900 dark:text-white">
                           {req.author?.fullName || "Anonymous"}
                           {isOwner && (
-                            <span className="ml-2 text-[10px] text-blue-500">
+                            <span className="ml-2 text-[10px] font-black uppercase tracking-wide text-blue-500">
                               (You)
                             </span>
                           )}
                         </p>
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                          {new Date(req.createdAt).toLocaleDateString()}
+                        <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                          <CalendarDays size={13} />
+                          {new Date(req.createdAt).toLocaleDateString(
+                            undefined,
+                            { month: "short", day: "numeric", year: "numeric" },
+                          )}
                         </p>
                       </div>
                     </div>
                     <span
-                      className={`px-3 py-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-full border ${getPriorityStyles(req.priority)}`}
+                      className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider sm:px-3 sm:text-xs ${getPriorityStyles(req.priority)}`}
                     >
-                      {req.priority}
+                      {normalizePriority(req.priority)}
                     </span>
                   </div>
 
-                  <div className="flex-grow mb-6">
+                  <div className="relative z-10 mb-7 flex-grow">
                     <h3
-                      className={`text-xl font-bold mb-3 line-clamp-2 leading-tight transition-colors ${
+                      className={`mb-4 line-clamp-2 text-xl font-black leading-tight tracking-tight transition-colors ${
                         isOwner
                           ? "text-blue-700 dark:text-blue-400"
-                          : "text-gray-900 dark:text-white group-hover:text-blue-600"
+                          : "text-gray-900 group-hover:text-blue-600 dark:text-white dark:group-hover:text-cyan-400"
                       }`}
                     >
                       {req.title}
                     </h3>
                     <div
-                      className={`flex items-center gap-2 text-sm font-medium p-3 rounded-xl ${
+                      className={`flex items-center gap-2.5 rounded-2xl border px-3.5 py-3 text-sm font-semibold ${
                         isOwner
-                          ? "bg-blue-100/50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                          : "bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400"
+                          ? "border-blue-200/70 bg-blue-100/60 text-blue-700 dark:border-blue-800/50 dark:bg-blue-900/30 dark:text-blue-300"
+                          : "border-gray-100 bg-gray-50 text-gray-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400"
                       }`}
                     >
-                      <span className="truncate">📍 {req.location}</span>
+                      <MapPin size={16} className="shrink-0 text-blue-500 dark:text-cyan-400" />
+                      <span className="truncate">{req.location}</span>
                     </div>
                   </div>
 
+                  {/* ACTION BUTTON DECISION */}
                   {isOwner ? (
-                    <Link to="/dashboard">
-                      <button className="w-full py-3.5 rounded-xl font-bold text-base bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-all">
-                        Manage My Request
-                      </button>
+                    <Link
+                      to="/dashboard"
+                      className="relative z-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                    >
+                      Manage My Request
+                      <ArrowRight size={17} />
                     </Link>
-                  ) : !isOwner ? ( // 👈 ONLY show "I Can Help" if NOT an admin
-                    <Link to={`/request-details/${req._id}`}>
-                      <button className="w-full py-3.5 rounded-xl font-bold text-base bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg hover:scale-[1.02] transition-all">
-                        I Can Help
-                      </button>
-                    </Link>
+                  ) : hasMessaged ? (
+                    <button
+                      onClick={() => navigate("/inbox")}
+                      className="relative z-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 text-sm font-black text-white shadow-lg shadow-emerald-500/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                    >
+                      <MessageSquare size={18} />
+                      Open Inbox
+                    </button>
                   ) : (
-                    <div className="w-full py-3.5 rounded-xl text-center text-gray-400 text-sm font-medium border border-dashed">
-                      View Only
-                    </div>
+                    <Link
+                      to={`/request-details/${req._id}`}
+                      className="relative z-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                    >
+                        <HandHeart size={18} />
+                        I Can Help
+                    </Link>
                   )}
                 </div>
               );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect } from "react";
 
 import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/layout/Footer";
@@ -13,7 +13,6 @@ import {
   RotateCcw,
   Edit3,
   Trash2,
-  Send,
   Building,
 } from "lucide-react";
 
@@ -34,13 +33,6 @@ import {
   updateOfferStatus,
 } from "../../services/offerService";
 
-import {
-  getInbox,
-  getConversation,
-  sendMessage,
-  markMessageAsRead,
-} from "../../services/messageService";
-
 import { getCurrentUser } from "../../services/authService";
 import { createJoinRequest } from "../../services/apartmentService";
 
@@ -50,7 +42,6 @@ export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-  const messagesEndRef = useRef(null);
 
   // Parse user from Token
   const user = token ? jwtDecode(token) : null;
@@ -58,90 +49,32 @@ export default function Dashboard() {
   const isEvicted = localStorageUser.isEvicted || false;
   const apartmentIdFromStorage = localStorageUser.apartmentId;
   const [currentUser, setCurrentUser] = useState(null);
-  const chatContainerRef = useRef(null);
 
   // --- States ---
   const [activeTab, setActiveTab] = useState("requests");
   const [myPosts, setMyPosts] = useState([]);
-  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newApartmentId, setNewApartmentId] = useState("");
   const [hasPendingRequest, setHasPendingRequest] = useState(false); // 💡 State for approval workflow
 
-  // Chat/Post Action States
-  const [conversation, setConversation] = useState([]);
-  const [loadingChat, setLoadingChat] = useState(false);
-  const [replyingTo, setReplyingTo] = useState(null);
-  const [replyContent, setReplyContent] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [editData, setEditData] = useState({ title: "", description: "" });
 
   const hasApartment =
     currentUser?.apartmentId || localStorageUser?.apartmentId;
-  const scrollToBottom = () => {
-    // Smoothly scrolls the window down to the dummy element location
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-  useEffect(() => {
-    if (conversation.length > 0) {
-      scrollToBottom();
-    }
-  }, [conversation]);
+
   // URL Tab Checker
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const tab = params.get("tab");
-    if (tab === "messages") setActiveTab("messages");
-    else if (tab === "offers") setActiveTab("offers");
+    if (tab === "offers") setActiveTab("offers");
     else if (tab === "requests") setActiveTab("requests");
   }, [location.search]);
 
-  // --- Socket & Data Fetching ---
+  // --- Apartment approval/removal events ---
   useEffect(() => {
     if (user?.id) socket.emit("join_room", user.id);
-
-    // 1. Define handlers separately
-    const handleReceiveMessage = (newMsg) => {
-      console.log("📨 Real-time socket message arrived:", newMsg);
-
-      // Always update the sidebar inbox list preview
-      setMessages((prev) => [newMsg, ...prev]);
-
-      // Extract string IDs carefully to avoid type-mismatch bugs
-      const incomingSenderId = (newMsg.sender?._id || newMsg.sender).toString();
-      const activeChatId = replyingTo ? replyingTo.toString() : null;
-
-      console.log("Comparing IDs for Chatbox update:", {
-        incomingSenderId,
-        activeChatId,
-      });
-
-      // ✅ FIX: If the user currently has this exact chat window open, push it to the screen!
-      if (activeChatId === incomingSenderId) {
-        setConversation((prev) => [...prev, newMsg]);
-
-        // Since they are actively looking at it, tell the backend it's read immediately
-        markMessageAsRead(newMsg._id)
-          .then(() => {
-            window.dispatchEvent(new Event("messagesUpdated"));
-          })
-          .catch((err) => {
-            console.error("Failed to mark message as read:", err);
-          })
-          .then(() => {
-            // Trigger navbar badge count update
-            window.dispatchEvent(new Event("messagesUpdated"));
-          });
-      } else {
-        // If the chat window IS NOT open, refresh the count badge via custom event or direct fetch
-        if (typeof fetchUnreadCount === "function") {
-          fetchUnreadCount();
-        } else {
-          window.dispatchEvent(new Event("messagesUpdated"));
-        }
-      }
-    };
 
     const handleApproval = (data) => {
       toast.success("Admin approved your request!");
@@ -161,21 +94,14 @@ export default function Dashboard() {
       window.dispatchEvent(new Event("local-storage-update"));
     };
 
-    // 2. Attach listeners
-    socket.on("receive_message", handleReceiveMessage);
     socket.on("approval_confirmed", handleApproval);
     socket.on("user_removed", handleUserRemoved);
 
-    // 3. Cleanup listeners (Crucial to prevent duplicate events)
     return () => {
-      socket.off("receive_message", handleReceiveMessage);
       socket.off("approval_confirmed", handleApproval);
       socket.off("user_removed", handleUserRemoved);
     };
-
-    // 🌟 CRITICAL CHANGE: Added 'replyingTo' and 'token' here.
-    // Without this, the listener inside cannot read who you are currently chatting with!
-  }, [user?.id, localStorageUser, replyingTo, token]); // Added localStorageUser as a dependency just in case
+  }, [user?.id, token]);
 
   // --- Post Action Handlers ---
 
@@ -254,10 +180,9 @@ export default function Dashboard() {
       }
 
       try {
-        const [requests, offers, messagesData] = await Promise.all([
+        const [requests, offers] = await Promise.all([
           getMyRequests(),
           getMyOffers(),
-          getInbox(),
         ]);
 
         setMyPosts([
@@ -274,7 +199,6 @@ export default function Dashboard() {
           })),
         ]);
 
-        setMessages(Array.isArray(messagesData) ? messagesData : []);
       } catch (err) {
         console.error("Sync Error:", err);
       } finally {
@@ -322,84 +246,6 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
-  // --- 5. MESSAGE GROUPING LOGIC ---
-  const groupedMessages = useMemo(() => {
-    if (!Array.isArray(messages)) return [];
-
-    const groups = {};
-    messages.forEach((msg) => {
-      // Identify the other person in the conversation
-      const otherUser =
-        (msg.sender?._id || msg.sender) === user?.id
-          ? msg.receiver
-          : msg.sender;
-
-      const otherUserId = (otherUser?._id || otherUser)?.toString();
-
-      // Only group if we have a valid other user
-      if (otherUserId && !groups[otherUserId]) {
-        groups[otherUserId] = {
-          ...msg,
-          otherUser, // Store the other user's object for the UI
-        };
-      }
-    });
-    return Object.values(groups);
-  }, [messages, user?.id]);
-
-  const openConversation = async (otherUserId, postType, postId) => {
-    setReplyingTo(otherUserId);
-    setLoadingChat(true);
-
-    try {
-      const data = await getConversation(otherUserId, postType, postId);
-
-      setConversation(data);
-
-      const unreadMsgs = data.filter(
-        (m) => !m.isRead && (m.receiver?._id || m.receiver) === user.id,
-      );
-
-      if (unreadMsgs.length > 0) {
-        await Promise.all(unreadMsgs.map((msg) => markMessageAsRead(msg._id)));
-
-        window.dispatchEvent(new Event("messagesUpdated"));
-      }
-    } catch (err) {
-      console.error("OPEN CONVERSATION ERROR:", err);
-      toast.error(err.message || "Error loading chat");
-    } finally {
-      setLoadingChat(false);
-    }
-  };
-
-  const handleReply = async (
-    e,
-    receiverId,
-    relatedPostId,
-    postTitle,
-    postType,
-  ) => {
-    e.preventDefault();
-
-    if (!replyContent.trim()) return;
-
-    try {
-      const newMsg = await sendMessage({
-        receiverId,
-        content: replyContent.trim(),
-        relatedPostId,
-        postTitle,
-      });
-
-      setConversation((prev) => [...prev, newMsg]);
-
-      setReplyContent("");
-    } catch (err) {
-      toast.error("Failed to send message");
-    }
-  };
-
   // ==========================================
   // 🚨 GATEKEEPER UI
   // ==========================================
@@ -466,9 +312,18 @@ export default function Dashboard() {
       <Navbar />
       <main className="flex-grow max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 md:py-12">
         <header className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white truncate">
-            Welcome, {user?.fullName}!
-          </h1>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white truncate">
+              Welcome, {user?.fullName}!
+            </h1>
+            <button
+              type="button"
+              onClick={() => navigate("/inbox")}
+              className="inline-flex items-center justify-center rounded-xl bg-purple-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-purple-500/20 transition-colors hover:bg-purple-700"
+            >
+              Inbox
+            </button>
+          </div>
         </header>
 
         <div className="flex gap-4 border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto no-scrollbar whitespace-nowrap">
@@ -485,17 +340,6 @@ export default function Dashboard() {
           >
             My Offers ({myPosts.filter((p) => p.postType === "offers").length})
           </button>
-          <button
-            onClick={() => setActiveTab("messages")}
-            className={`pb-4 px-2 font-bold text-sm transition-all flex items-center gap-2 ${activeTab === "messages" ? "text-purple-600 border-b-2 border-purple-600" : "text-gray-400"}`}
-          >
-            Inbox{" "}
-            {messages.filter((m) => !m.isRead).length > 0 && (
-              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                {messages.filter((m) => !m.isRead).length}
-              </span>
-            )}
-          </button>
         </div>
 
         {loading ? (
@@ -504,135 +348,7 @@ export default function Dashboard() {
           </p>
         ) : (
           <div className="grid gap-6 min-w-0 w-full">
-            {activeTab === "messages" ? (
-              groupedMessages.length > 0 ? (
-                groupedMessages.map((msg) => {
-                  const otherUser = msg.otherUser;
-                  const isChatOpen =
-                    replyingTo === (otherUser?._id || otherUser)?.toString();
-
-                  // Check if there are ANY unread messages in this specific conversation
-                  const hasUnread = messages.some(
-                    (m) =>
-                      !m.isRead &&
-                      (m.sender?._id || m.sender)?.toString() ===
-                        (otherUser?._id || otherUser)?.toString(),
-                  );
-
-                  return (
-                    <div
-                      key={msg._id}
-                      className={`p-5 md:p-6 rounded-2xl border transition-all duration-300 ${isChatOpen ? "ring-2 ring-blue-500 bg-white dark:bg-gray-900 shadow-lg" : !hasUnread ? "bg-white dark:bg-gray-900 shadow-sm" : "bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 shadow-md ring-1 ring-blue-500/20"}`}
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="min-w-0">
-                          <span className="font-bold text-sm text-gray-800 dark:text-gray-200 block truncate">
-                            Chat with {otherUser?.fullName}
-                          </span>
-                          <span className="text-[10px] text-gray-400 block truncate italic">
-                            Re: {msg.postTitle || "General Inquiry"}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() =>
-                            openConversation(
-                              (otherUser?._id || otherUser)?.toString(),
-                              msg.postType,
-                              msg.relatedPostId,
-                            )
-                          }
-                          className="shrink-0 text-[10px] font-black uppercase bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors"
-                        >
-                          {isChatOpen ? "Close Chat" : "View Chat"}
-                        </button>
-                      </div>
-
-                      {isChatOpen ? (
-                        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div
-                            ref={chatContainerRef}
-                            className="space-y-3 max-h-80 overflow-y-auto mb-4 p-2 flex flex-col no-scrollbar"
-                          >
-                            {loadingChat ? (
-                              <div className="flex justify-center py-4">
-                                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                              </div>
-                            ) : (
-                              <>
-                                {conversation.map((chat) => (
-                                  <div
-                                    key={chat._id}
-                                    className={`flex w-full mb-1 ${chat.sender?._id === user?.id || chat.sender === user?.id ? "justify-end" : "justify-start"}`}
-                                  >
-                                    <div
-                                      className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm ${
-                                        chat.sender?._id === user?.id ||
-                                        chat.sender === user?.id
-                                          ? "bg-blue-600 text-white rounded-tr-none"
-                                          : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-tl-none border border-gray-200 dark:border-gray-700"
-                                      }`}
-                                    >
-                                      {chat.content}
-                                      <div
-                                        className={`text-[9px] mt-1 opacity-70 ${chat.sender?._id === user?.id || chat.sender === user?.id ? "text-right" : "text-left"}`}
-                                      >
-                                        {new Date(
-                                          chat.createdAt,
-                                        ).toLocaleTimeString([], {
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </>
-                            )}
-                          </div>
-
-                          <form
-                            onSubmit={(e) =>
-                              handleReply(
-                                e,
-                                (otherUser?._id || otherUser)?.toString(),
-                                msg.relatedPostId,
-                                msg.postTitle,
-                              )
-                            }
-                            className="flex gap-2 sticky bottom-0 bg-inherit pt-2"
-                          >
-                            <input
-                              autoFocus
-                              className="flex-grow p-2.5 text-sm border border-gray-200 dark:border-gray-700 rounded-xl dark:bg-gray-800 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                              placeholder="Type a message..."
-                              value={replyContent}
-                              onChange={(e) => setReplyContent(e.target.value)}
-                            />
-                            <button
-                              type="submit"
-                              disabled={!replyContent.trim()}
-                              className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                            >
-                              <Send size={18} />
-                            </button>
-                          </form>
-                        </div>
-                      ) : (
-                        <p
-                          className={`text-sm ${hasUnread ? "font-semibold text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"} truncate mt-2`}
-                        >
-                          {msg.content}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-center py-10 text-gray-500">
-                  Your inbox is empty.
-                </p>
-              )
-            ) : (
+            {
               /* MY POSTS SECTION */
               (() => {
                 const filtered = myPosts.filter(
@@ -791,7 +507,7 @@ export default function Dashboard() {
                   </div>
                 );
               })()
-            )}
+            }
           </div>
         )}
       </main>

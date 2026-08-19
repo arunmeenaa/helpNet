@@ -23,17 +23,21 @@ import API_URL from "../../api";
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [dark, setDark] = useDarkMode();
   const isAdmin = user && user.role === "admin";
   const dropdownRef = useRef(null);
+  const inboxRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
 
   const profilePath = user?.role === "owner" ? "/owner-profile" : "/profile";
   const dashboardPath = isAdmin ? "/owner" : "/dashboard";
+  const inboxPath = isAdmin ? "/inbox" : "/inbox";
+    
 
   // 💡 Helper to check if user is restricted (logged in but no apartment)
   const isHomeless = user && user.role === "user" && !user.apartmentId;
@@ -69,7 +73,7 @@ export default function Navbar() {
 
     // 3. Define a single, clean handler for new messages
     const handleNewMessage = () => {
-      console.log("📨 Real-time update: Refreshing unread count...");
+      
       fetchUnreadCount();
     };
 
@@ -126,6 +130,8 @@ export default function Navbar() {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target))
         setDropdownOpen(false);
+      if (inboxRef.current && !inboxRef.current.contains(event.target))
+        setInboxOpen(false);
       if (
         mobileMenuRef.current &&
         !mobileMenuRef.current.contains(event.target) &&
@@ -144,7 +150,7 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="sticky top-0 z-50 w-full backdrop-blur-xl bg-white/80 dark:bg-gray-950/80 border-b border-gray-200/50 dark:border-gray-800/50 transition-colors duration-300">
+    <nav className="sticky top-0 z-50 w-full bg-white/55 dark:bg-gray-950/55 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/50 dark:border-white/10 shadow-[0_8px_30px_rgba(15,23,42,0.08)] transition-colors duration-300">
       <div className="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto relative">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 group">
@@ -191,16 +197,52 @@ export default function Navbar() {
 
             {user ? (
               <div className="flex items-center gap-3">
-                {user && !isHomeless && !isAdmin && (
-                  <Link
-                    to="/dashboard?tab=messages"
-                    className="relative p-2 text-gray-500 hover:text-blue-600 transition-colors"
-                  >
-                    <Mail size={22} />
-                    {unreadCount > 0 && (
-                      <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 border-2 border-white dark:border-gray-950 rounded-full animate-pulse"></span>
+                {user && !isHomeless && (
+                  <div className="relative" ref={inboxRef}>
+                    <button
+                      type="button"
+                      onClick={() => setInboxOpen((isVisible) => !isVisible)}
+                      aria-expanded={inboxOpen}
+                      aria-label="Open inbox"
+                      className="relative p-2 text-gray-500 dark:text-gray-300 hover:text-blue-600 dark:hover:text-cyan-400 transition-colors"
+                    >
+                      <Mail size={22} />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-red-500 text-white border-2 border-white dark:border-gray-900 rounded-full text-[9px] leading-none font-bold flex items-center justify-center">
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {inboxOpen && (
+                      <div className="absolute right-0 mt-3 w-80 overflow-hidden rounded-2xl border border-white/60 dark:border-white/10 bg-white/65 dark:bg-gray-900/65 backdrop-blur-2xl backdrop-saturate-150 shadow-2xl shadow-slate-900/15 z-[100] animate-in fade-in zoom-in-95 duration-200">
+                        <div className="px-4 py-4 border-b border-white/50 dark:border-white/10">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                Inbox
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                {unreadCount > 0
+                                  ? `You have ${unreadCount} unread message${unreadCount === 1 ? "" : "s"}`
+                                  : "You’re all caught up"}
+                              </p>
+                            </div>
+                            <div className="p-2 rounded-xl bg-blue-100/70 dark:bg-cyan-900/30 text-blue-600 dark:text-cyan-400">
+                              <Mail size={18} />
+                            </div>
+                          </div>
+                        </div>
+                        <Link
+                          to={inboxPath}
+                          onClick={() => setInboxOpen(false)}
+                          className="m-3 flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:brightness-105 transition-all"
+                        >
+                          Open Inbox
+                        </Link>
+                      </div>
                     )}
-                  </Link>
+                  </div>
                 )}
 
                 <div className="relative" ref={dropdownRef}>
@@ -235,7 +277,7 @@ export default function Navbar() {
                   </button>
 
                   {dropdownOpen && (
-                    <div className="absolute right-0 mt-3 w-64 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-2xl py-2 z-[100] animate-in fade-in zoom-in-95 duration-200">
+                     <div className="absolute right-0 mt-3 w-64 bg-white/65 dark:bg-gray-900/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 dark:border-white/10 rounded-2xl shadow-2xl shadow-slate-900/15 py-2 z-[100] animate-in fade-in zoom-in-95 duration-200">
                       <div className="px-4 py-3 border-b border-gray-50 dark:border-gray-800/60 mb-2">
                         <p className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
                           {user.fullName}
@@ -305,13 +347,21 @@ export default function Navbar() {
               <Moon size={22} />
             )}
           </button>
-          {user && !isHomeless && !isAdmin && (
-            <Link to="/dashboard?tab=messages" className="p-2 relative">
+          {user && !isHomeless && (
+            <button
+              type="button"
+              onClick={() => setInboxOpen((isVisible) => !isVisible)}
+              aria-expanded={inboxOpen}
+              aria-label="Open inbox"
+              className="p-2 relative text-gray-600 dark:text-gray-200"
+            >
               <Mail size={22} />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 border-2 border-white rounded-full"></span>
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 bg-red-500 text-white border-2 border-white dark:border-gray-950 rounded-full text-[9px] leading-none font-bold flex items-center justify-center">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
               )}
-            </Link>
+            </button>
           )}
           <button className="mobile-toggle p-2" onClick={() => setOpen(!open)}>
             {open ? <X size={28} /> : <Menu size={28} />}
@@ -323,7 +373,7 @@ export default function Navbar() {
           ref={mobileMenuRef}
           className={`absolute top-20 right-4 left-4 md:hidden z-[100] transition-all duration-300 ${open ? "opacity-100 translate-x-0" : "opacity-0 translate-x-10 pointer-events-none"}`}
         >
-          <div className="bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-3xl shadow-2xl p-4 flex flex-col gap-1">
+          <div className="bg-white/65 dark:bg-gray-950/65 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 dark:border-white/10 rounded-3xl shadow-2xl shadow-slate-900/15 p-4 flex flex-col gap-1">
             {user && (
               <div className="flex items-center gap-3 p-3 mb-2 bg-gray-50 dark:bg-gray-900/50 rounded-2xl">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white flex items-center justify-center font-bold">
@@ -337,6 +387,35 @@ export default function Navbar() {
                     {user.email}
                   </p>
                 </div>
+              </div>
+            )}
+            {user && !isHomeless && inboxOpen && (
+              <div className="mt-2 rounded-2xl border border-white/50 dark:border-white/10 bg-white/45 dark:bg-gray-900/45 backdrop-blur-xl p-3">
+                <div className="flex items-center gap-3 px-2 py-2">
+                  <div className="p-2 rounded-xl bg-blue-100/70 dark:bg-cyan-900/30 text-blue-600 dark:text-cyan-400">
+                    <Mail size={18} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      Inbox
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {unreadCount > 0
+                        ? `${unreadCount} unread message${unreadCount === 1 ? "" : "s"}`
+                        : "You’re all caught up"}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  to={inboxPath}
+                  onClick={() => {
+                    setInboxOpen(false);
+                    setOpen(false);
+                  }}
+                  className="mt-2 flex items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/20"
+                >
+                  Open Inbox
+                </Link>
               </div>
             )}
             {!user && (

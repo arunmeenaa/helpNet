@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { useLocation, useNavigate } from "react-router-dom";
-
+import useDarkMode from "./hooks/useDarkMode";
 import { Toaster } from "react-hot-toast";
 
 import ScrollToTop from "./components/common/ScrollToTop";
@@ -12,7 +12,7 @@ import socket from "./socket";
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-
+  const [isDark, setIsDark] = useDarkMode();
   const storedUser = localStorage.getItem("user");
 
   const user = storedUser ? JSON.parse(storedUser) : null;

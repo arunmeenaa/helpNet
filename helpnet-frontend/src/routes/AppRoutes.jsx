@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Common
 import PublicOnlyRoute from "../components/common/PublicOnlyRoute";
 import ProtectedRoute from "../components/common/ProtectedRoute";
+import Inbox from "../components/common/Inbox";
 
 // Public
 import Home from "../pages/public/Home";
@@ -118,7 +119,7 @@ const AppRoutes = ({ user }) => {
       />
 
       {/* ================= USER ================= */}
-
+      <Route path="/inbox" element={<Inbox />} />
       <Route
         path="/dashboard"
         element={

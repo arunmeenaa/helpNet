@@ -59,7 +59,7 @@ export default function OwnerProfile() {
     fetchPendingRequests();
 
     const handleNewRequest = (newUser) => {
-      console.log("📨 Real-time request caught on profile:", newUser);
+      
 
       if (newUser.apartmentId === user?.apartmentId) {
         setPendingRequests((prev) => [newUser, ...prev]);

@@ -8,8 +8,7 @@ export const sendMessage = (data) => {
     postType: data.postType || "request",
   };
 
-  console.log("SERVICE RECEIVED:", data);
-  console.log("SERVICE SENDING:", payload);
+  
 
   return request("/api/messages/send", {
     method: "POST",

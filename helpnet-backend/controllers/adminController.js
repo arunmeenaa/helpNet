@@ -124,9 +124,7 @@ const createApartment = async (req, res) => {
       "_id fullName role apartmentId",
     );
 
-    console.log("========== OWNER AFTER SAVE ==========");
-    console.log(savedOwner);
-    console.log("======================================");
+    
     res.status(201).json({
       message: "Apartment created successfully",
       apartment: {
@@ -298,9 +296,7 @@ const removeUser = async (req, res) => {
       author: targetUser._id,
     });
 
-    console.log(
-      `🧹 Deleted ${deletedRequests.deletedCount} requests and ${deletedOffers.deletedCount} offers for evicted user ${targetUser._id}`,
-    );
+   
 
     // Socket notifications
     const io = req.app.get("io");

@@ -44,7 +44,9 @@ const sendMessage = async (req, res) => {
     }
 
     const cleanReceiverId =
-      typeof receiverId === "object" ? receiverId.id : receiverId;
+      typeof receiverId === "object"
+        ? receiverId.id || receiverId._id
+        : receiverId;
 
     if (!cleanReceiverId || !mongoose.Types.ObjectId.isValid(cleanReceiverId)) {
       return res.status(400).json({
@@ -59,7 +61,6 @@ const sendMessage = async (req, res) => {
     }
 
     const allowedPostTypes = ["request", "offer", "general"];
-
     const cleanPostType = postType || "general";
 
     if (!allowedPostTypes.includes(cleanPostType)) {
@@ -94,7 +95,10 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    if (receiverUser.apartmentId !== req.user.apartmentId) {
+    // FIX 1: Convert ObjectIds to strings before comparing
+    if (
+      receiverUser.apartmentId?.toString() !== req.user.apartmentId?.toString()
+    ) {
       return res.status(403).json({
         message: "Users must be in the same apartment to chat.",
       });
@@ -104,25 +108,22 @@ const sendMessage = async (req, res) => {
 
     if (cleanPostType === "request") {
       relatedPost = await Request.findById(relatedPostId);
-
       if (!relatedPost) {
-        return res.status(404).json({
-          message: "Request not found.",
-        });
+        return res.status(404).json({ message: "Request not found." });
       }
     }
 
     if (cleanPostType === "offer") {
       relatedPost = await Offer.findById(relatedPostId);
-
       if (!relatedPost) {
-        return res.status(404).json({
-          message: "Offer not found.",
-        });
+        return res.status(404).json({ message: "Offer not found." });
       }
     }
 
-    if (relatedPost && relatedPost.apartmentId !== req.user.apartmentId) {
+    if (
+      relatedPost &&
+      relatedPost.apartmentId?.toString() !== req.user.apartmentId?.toString()
+    ) {
       return res.status(403).json({
         message: "You cannot message users about posts from another apartment.",
       });
@@ -134,9 +135,7 @@ const sendMessage = async (req, res) => {
       content: content.trim(),
       apartmentId: req.user.apartmentId,
       postType: cleanPostType,
-
       relatedPostId: cleanPostType === "general" ? null : relatedPostId,
-
       postTitle:
         cleanPostType === "general"
           ? "General Inquiry"
@@ -145,19 +144,25 @@ const sendMessage = async (req, res) => {
 
     const savedMessage = await newMessage.save();
 
+    // FIX 2: Populate sender and receiver so frontend helper utilities receive valid objects
+    const populatedMessage = await Message.findById(savedMessage._id)
+      .populate("sender", "fullName name email")
+      .populate("receiver", "fullName name email")
+      .lean();
+
     const io = req.app.get("io");
 
+    // FIX 3: Broadcast to both receiver and sender rooms
     if (io) {
-      io.to(cleanReceiverId.toString()).emit("receive_message", savedMessage);
+      const payload = populatedMessage || savedMessage;
+      io.to(cleanReceiverId.toString()).emit("receive_message", payload);
+      io.to(req.user.id.toString()).emit("receive_message", payload);
     }
 
-    return res.status(201).json(savedMessage);
+    return res.status(201).json(populatedMessage || savedMessage);
   } catch (error) {
     console.error("SEND MESSAGE ERROR:", error);
-
-    return res.status(500).json({
-      message: "Server Error",
-    });
+    return res.status(500).json({ message: "Server Error" });
   }
 };
 
