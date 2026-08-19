@@ -8,7 +8,6 @@ const apartmentSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // Public apartment/community ID
     apartmentId: {
       type: String,
       required: true,
@@ -17,7 +16,7 @@ const apartmentSchema = new mongoose.Schema(
       lowercase: true,
     },
 
-    // User who created/owns the apartment
+
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -2,9 +2,7 @@ const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // BASIC INFORMATION
-    // ==========================================
+   
     fullName: {
       type: String,
       required: true,
@@ -19,9 +17,6 @@ const UserSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ==========================================
-    // AUTHENTICATION
-    // ==========================================
     password: {
       type: String,
     },
@@ -35,18 +30,12 @@ const UserSchema = new mongoose.Schema(
       default: true,
     },
 
-    // ==========================================
-    // ROLE
-    // ==========================================
     role: {
       type: String,
       enum: ["resident", "owner"],
       default: "resident",
     },
 
-    // ==========================================
-    // APARTMENT
-    // ==========================================
     apartmentId: {
       type: String,
       default: null,
@@ -59,9 +48,6 @@ const UserSchema = new mongoose.Schema(
       default: false,
     },
 
-    // ==========================================
-    // PROFILE
-    // ==========================================
     location: {
       type: String,
       trim: true,
@@ -84,17 +70,11 @@ const UserSchema = new mongoose.Schema(
   }
 );
 
-// ==========================================
-// INDEXES
-// ==========================================
 
 UserSchema.index({
   apartmentId: 1,
 });
 
-// ==========================================
-// EXPORT
-// ==========================================
 
 module.exports =
   mongoose.models.User ||

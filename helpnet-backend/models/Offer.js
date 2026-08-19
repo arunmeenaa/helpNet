@@ -2,9 +2,7 @@ const mongoose = require("mongoose");
 
 const offerSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // OFFER DETAILS
-    // ==========================================
+
     title: {
       type: String,
       required: true,
@@ -23,27 +21,18 @@ const offerSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ==========================================
-    // STATUS
-    // ==========================================
     status: {
       type: String,
       enum: ["open", "resolved", "cancelled"],
       default: "open",
     },
 
-    // ==========================================
-    // AUTHOR
-    // ==========================================
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
 
-    // ==========================================
-    // APARTMENT
-    // ==========================================
     apartmentId: {
       type: String,
       required: true,
@@ -56,9 +45,7 @@ const offerSchema = new mongoose.Schema(
   }
 );
 
-// ==========================================
-// INDEXES
-// ==========================================
+
 
 // Apartment feed
 offerSchema.index({

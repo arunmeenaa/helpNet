@@ -30,23 +30,17 @@ const joinRequestSchema = new mongoose.Schema(
   }
 );
 
-// ==========================================
-// INDEXES
-// ==========================================
-
-// Quickly find pending requests for an apartment
 joinRequestSchema.index({
   apartmentId: 1,
   status: 1,
 });
 
-// Quickly find a user's requests
+
 joinRequestSchema.index({
   userId: 1,
 });
 
-// Prevent duplicate pending requests
-// for the same user and apartment.
+
 joinRequestSchema.index(
   {
     userId: 1,

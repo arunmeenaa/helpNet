@@ -2,9 +2,7 @@ const mongoose = require("mongoose");
 
 const requestSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // REQUEST DETAILS
-    // ==========================================
+  
     title: {
       type: String,
       required: true,
@@ -23,9 +21,6 @@ const requestSchema = new mongoose.Schema(
       trim: true,
     },
 
-    // ==========================================
-    // PRIORITY
-    // ==========================================
     priority: {
       type: String,
       enum: ["high", "medium", "low"],
@@ -33,27 +28,20 @@ const requestSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ==========================================
-    // STATUS
-    // ==========================================
     status: {
       type: String,
       enum: ["open", "resolved", "cancelled"],
       default: "open",
     },
 
-    // ==========================================
-    // AUTHOR
-    // ==========================================
+
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
 
-    // ==========================================
-    // APARTMENT
-    // ==========================================
+ 
     apartmentId: {
       type: String,
       required: true,
@@ -66,22 +54,15 @@ const requestSchema = new mongoose.Schema(
   }
 );
 
-// ==========================================
-// INDEXES
-// ==========================================
-
-// Apartment feed
 requestSchema.index({
   apartmentId: 1,
 });
 
-// Apartment + status feed
 requestSchema.index({
   apartmentId: 1,
   status: 1,
 });
 
-// User's own requests
 requestSchema.index({
   author: 1,
 });

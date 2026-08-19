@@ -2,9 +2,7 @@ const mongoose = require("mongoose");
 
 const messageSchema = new mongoose.Schema(
   {
-    // ==========================================
-    // USERS
-    // ==========================================
+
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -17,9 +15,6 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ==========================================
-    // MESSAGE
-    // ==========================================
     content: {
       type: String,
       required: true,
@@ -27,9 +22,6 @@ const messageSchema = new mongoose.Schema(
       minlength: 1,
     },
 
-    // ==========================================
-    // CHAT / POST CONTEXT
-    // ==========================================
     postType: {
       type: String,
       enum: ["request", "offer", "general"],
@@ -47,17 +39,11 @@ const messageSchema = new mongoose.Schema(
       default: "",
     },
 
-    // ==========================================
-    // READ STATUS
-    // ==========================================
     isRead: {
       type: Boolean,
       default: false,
     },
 
-    // ==========================================
-    // APARTMENT
-    // ==========================================
     apartmentId: {
       type: String,
       required: true,
@@ -70,9 +56,6 @@ const messageSchema = new mongoose.Schema(
   }
 );
 
-// ==========================================
-// INDEXES
-// ==========================================
 
 // Unread messages
 messageSchema.index({

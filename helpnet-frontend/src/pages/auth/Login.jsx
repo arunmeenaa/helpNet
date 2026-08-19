@@ -54,15 +54,16 @@ export default function Login() {
         },
       );
 
-      // ==========================================
-      // REDIRECT BASED ON ROLE
-      // ==========================================
+      
       if (actualRole === "owner") {
         navigate("/owner-dashboard");
       } else if (actualRole === "resident") {
         navigate("/dashboard");
+      } else if (actualRole === "admin") {
+       
+        navigate("/owner-dashboard");
       } else {
-        throw new Error("Invalid account role.");
+        throw new Error(`Invalid account role: ${actualRole || "undefined"}`);
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -80,9 +81,9 @@ export default function Login() {
   // ==========================================
   // GOOGLE LOGIN
   // ==========================================
- const handleGoogleLogin = () => {
-  window.location.href = `${API_URL}/api/auth/google`;
-};
+  const handleGoogleLogin = () => {
+    window.location.href = `${API_URL}/api/auth/google`;
+  };
 
   // ==========================================
   // INPUT STYLE
