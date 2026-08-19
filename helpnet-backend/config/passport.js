@@ -33,7 +33,7 @@ passport.use(
             email,
             googleId: profile.id,
             isVerified: true,
-            role: "user",
+            role: "resident",
           });
 
           await user.save();
