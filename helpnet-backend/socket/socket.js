@@ -1,10 +1,17 @@
+const connectedUsers = new Map();
+
 const setupSocket = (io) => {
   io.on("connection", (socket) => {
-  
     socket.on("join_room", (userId) => {
       if (!userId) return;
 
-      socket.join(userId.toString());
+      const id = userId.toString();
+
+      socket.join(id);
+
+      connectedUsers.set(id, {
+        socketId: socket.id,
+      });
     });
 
     socket.on("join_apartment", (apartmentId) => {
@@ -16,15 +23,20 @@ const setupSocket = (io) => {
     socket.on("join_admin_room", (apartmentId) => {
       if (!apartmentId) return;
 
-      const roomName = `admin_${apartmentId}`;
-
-      socket.join(roomName);
+      socket.join(`admin_${apartmentId}`);
     });
 
     socket.on("disconnect", () => {
-      console.log("🔌 Socket disconnected:", socket.id);
+      for (const [userId, data] of connectedUsers.entries()) {
+        if (data.socketId === socket.id) {
+          connectedUsers.delete(userId);
+          break;
+        }
+      }
     });
   });
 };
+
+setupSocket.connectedUsers = connectedUsers;
 
 module.exports = setupSocket;

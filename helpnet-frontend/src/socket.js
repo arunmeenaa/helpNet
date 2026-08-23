@@ -12,7 +12,7 @@ const socket = io(API_URL, {
   reconnection: true
 });
 
-// Helper to join room automatically if token exists
+
 export const joinSocketRoom = () => {
   const token = localStorage.getItem('token');
   if (token) {

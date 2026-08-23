@@ -1,29 +1,24 @@
 import { useEffect } from "react";
-
 import { useLocation, useNavigate } from "react-router-dom";
 import useDarkMode from "./hooks/useDarkMode";
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 
 import ScrollToTop from "./components/common/ScrollToTop";
 import AppRoutes from "./routes/AppRoutes";
-
 import socket from "./socket";
 
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isDark, setIsDark] = useDarkMode();
-  const storedUser = localStorage.getItem("user");
 
+  const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
 
-  // ==========================================
-  // GOOGLE LOGIN TOKEN HANDLING
-  // ==========================================
+  const userId = user?.id || user?._id;
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-
     const urlToken = params.get("token");
 
     if (!urlToken) return;
@@ -32,7 +27,6 @@ function App() {
       localStorage.setItem("token", urlToken);
 
       const base64Url = urlToken.split(".")[1];
-
       const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
 
       const userData = JSON.parse(window.atob(base64));
@@ -53,25 +47,100 @@ function App() {
     }
   }, [location.search, navigate]);
 
-  // ==========================================
-  // SOCKET.IO
-  // ==========================================
-
   useEffect(() => {
-    if (!user?.id) return;
+    if (!userId) {
+      console.log("⚠️ No user ID - socket room not joined");
+      return;
+    }
 
     const joinRoom = () => {
-      socket.emit("join_room", user.id);
+      socket.emit("join_room", userId);
     };
 
-    joinRoom();
+    if (socket.connected) {
+      joinRoom();
+    }
 
     socket.on("connect", joinRoom);
 
     return () => {
       socket.off("connect", joinRoom);
     };
-  }, [user?.id]);
+  }, [userId]);
+
+  useEffect(() => {
+    const handleConnect = () => {};
+
+    const handleDisconnect = () => {};
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+
+    return () => {
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+    };
+  }, []);
+
+  useEffect(() => {
+    const apartmentId = user?.apartmentId;
+
+    if (!apartmentId) {
+      console.log("⚠️ No apartment ID - apartment room not joined");
+      return;
+    }
+
+    const joinApartmentRoom = () => {
+      socket.emit("join_apartment", apartmentId);
+    };
+
+    if (socket.connected) {
+      joinApartmentRoom();
+    }
+
+    socket.on("connect", joinApartmentRoom);
+
+    return () => {
+      socket.off("connect", joinApartmentRoom);
+    };
+  }, [user?.apartmentId]);
+
+  useEffect(() => {
+    const handleNotification = (notification) => {
+      if (!notification) return;
+
+      switch (notification.type) {
+        case "new_message":
+          toast(`💬 ${notification.message || "You received a new message."}`, {
+            duration: 5000,
+          });
+          break;
+
+        case "new_request":
+          toast.success(`📋 ${notification.message || "New request nearby."}`, {
+            duration: 5000,
+          });
+          break;
+
+        case "new_offer":
+          toast.success(`🤝 ${notification.message || "New offer nearby."}`, {
+            duration: 5000,
+          });
+          break;
+
+        default:
+          toast(notification.message || "You have a new notification.", {
+            duration: 5000,
+          });
+      }
+    };
+
+    socket.on("notification", handleNotification);
+
+    return () => {
+      socket.off("notification", handleNotification);
+    };
+  }, []);
 
   return (
     <>
@@ -79,7 +148,19 @@ function App() {
 
       <AppRoutes user={user} />
 
-      <Toaster position="top-center" reverseOrder={false} />
+      <Toaster
+        position="bottom-right"
+        reverseOrder={false}
+        toastOptions={{
+          duration: 5000,
+          style: {
+            borderRadius: "12px",
+            padding: "14px 18px",
+            fontSize: "14px",
+            maxWidth: "380px",
+          },
+        }}
+      />
     </>
   );
 }

@@ -161,7 +161,7 @@ const sendMessage = async (req, res) => {
       sender: req.user.id,
       receiver: cleanReceiverId,
       content: content.trim(),
-      apartmentId: req.user.apartmentId,
+      apartmentId: req.user.apartmentId || null,
       postType: cleanPostType,
       relatedPostId: cleanPostType === "general" ? null : relatedPostId,
       postTitle:
@@ -172,18 +172,34 @@ const sendMessage = async (req, res) => {
 
     const savedMessage = await newMessage.save();
 
-    // FIX 2: Populate sender and receiver so frontend helper utilities receive valid objects
     const populatedMessage = await Message.findById(savedMessage._id)
-      .populate("sender", "fullName name email")
-      .populate("receiver", "fullName name email")
+      .populate("sender", "fullName name email profilePic")
+      .populate("receiver", "fullName name email profilePic")
       .lean();
+
+    // ==========================================
+    // SOCKET.IO
+    // ==========================================
 
     const io = req.app.get("io");
 
-    // FIX 3: Broadcast to both receiver and sender rooms
     if (io) {
       const payload = populatedMessage || savedMessage;
+
+      // Send actual message to receiver
       io.to(cleanReceiverId.toString()).emit("receive_message", payload);
+
+      // Send notification toast to receiver
+      io.to(cleanReceiverId.toString()).emit("notification", {
+        type: "new_message",
+        title: "New Message",
+        message: `${payload.sender?.fullName || "Someone"} sent you a message.`,
+        postId: relatedPostId,
+        postType: cleanPostType,
+        messageId: payload._id,
+      });
+
+      // Update sender's chat/inbox in real time
       io.to(req.user.id.toString()).emit("receive_message", payload);
     }
 
@@ -199,10 +215,7 @@ const getInbox = async (req, res) => {
     const userId = req.user.id;
 
     const messages = await Message.find({
-      $or: [
-        { sender: userId },
-        { receiver: userId },
-      ],
+      $or: [{ sender: userId }, { receiver: userId }],
     })
       .populate("sender", "fullName email profilePic")
       .populate("receiver", "fullName email profilePic")
@@ -222,92 +235,51 @@ const getConversation = async (req, res) => {
   try {
     const { otherUserId, postType, postId } = req.params;
 
-    // ==========================================
-    // VALIDATE USER ID
-    // ==========================================
     if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
       return res.status(400).json({
-        message: "Invalid user ID",
+        message: "Invalid user ID.",
       });
     }
 
-    // ==========================================
-    // VALIDATE POST TYPE
-    // ==========================================
-    if (!["request", "offer"].includes(postType)) {
-      return res.status(400).json({
-        message: "Invalid post type",
-      });
-    }
-
-    // ==========================================
-    // VALIDATE POST ID
-    // ==========================================
     if (!mongoose.Types.ObjectId.isValid(postId)) {
       return res.status(400).json({
-        message: "Invalid post ID",
+        message: "Invalid post ID.",
       });
     }
 
-    // ==========================================
-    // APARTMENT CHECK
-    // ==========================================
-    if (!req.user.apartmentId) {
+    if (!["request", "offer", "general"].includes(postType)) {
       return res.status(400).json({
-        message: "Set apartment first",
+        message: "Invalid post type.",
       });
     }
 
-    // ==========================================
-    // FIND OTHER USER
-    // ==========================================
-    const otherUser = await User.findById(otherUserId).lean();
+    const currentUserId = req.user.id;
 
-    if (!otherUser) {
-      return res.status(404).json({
-        message: "User not found",
-      });
-    }
-
-    // ==========================================
-    // APARTMENT ISOLATION
-    // ==========================================
-    if (otherUser.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Users must be in the same apartment to chat.",
-      });
-    }
-
-    // ==========================================
-    // GET ONLY THIS SPECIFIC THREAD
-    // ==========================================
     const messages = await Message.find({
-      apartmentId: req.user.apartmentId,
-
       postType,
-
       relatedPostId: postId,
 
       $or: [
         {
-          sender: req.user.id,
+          sender: currentUserId,
           receiver: otherUserId,
         },
         {
           sender: otherUserId,
-          receiver: req.user.id,
+          receiver: currentUserId,
         },
       ],
     })
-      .populate("sender", "fullName")
-      .populate("receiver", "fullName")
-      .sort({ createdAt: 1 });
+      .populate("sender", "fullName name email profilePic")
+      .populate("receiver", "fullName name email profilePic")
+      .sort({ createdAt: 1 })
+      .lean();
 
-    res.json(messages);
+    return res.json(messages);
   } catch (error) {
-    console.error("CONVERSATION ERROR:", error.message);
+    console.error("GET CONVERSATION ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server Error",
     });
   }
@@ -319,7 +291,7 @@ const markAsRead = async (req, res) => {
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
-        message: "Invalid message ID",
+        message: "Invalid message ID.",
       });
     }
 
@@ -327,21 +299,14 @@ const markAsRead = async (req, res) => {
 
     if (!message) {
       return res.status(404).json({
-        message: "Message not found",
+        message: "Message not found.",
       });
     }
 
-    // Only receiver can mark it as read
+    // Only the receiver can mark the message as read
     if (message.receiver.toString() !== req.user.id.toString()) {
-      return res.status(401).json({
-        message: "Not authorized",
-      });
-    }
-
-    // Apartment isolation
-    if (message.apartmentId !== req.user.apartmentId) {
       return res.status(403).json({
-        message: "Access denied",
+        message: "You are not allowed to mark this message as read.",
       });
     }
 
@@ -349,11 +314,14 @@ const markAsRead = async (req, res) => {
 
     await message.save();
 
-    res.json(message);
+    return res.json({
+      message: "Message marked as read.",
+      data: message,
+    });
   } catch (error) {
-    console.error("Mark as read error:", error.message);
+    console.error("MARK AS READ ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Server Error",
     });
   }

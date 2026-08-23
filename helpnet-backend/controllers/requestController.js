@@ -2,19 +2,7 @@ const mongoose = require("mongoose");
 const Request = require("../models/Request");
 const User = require("../models/User");
 
-const distanceInKm = (lat1, lng1, lat2, lng2) => {
-  const toRad = (value) => (value * Math.PI) / 180;
-  const R = 6371;
-
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+const { distanceInKm } = require("../utils/distance");
 
 const isWithinNearbyRadius = (post, user) => {
   if (post.visibility !== "nearby") {
@@ -97,11 +85,11 @@ const getMyRequests = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).lean();
 
-   if (!user) {
-  return res.status(404).json({
-    message: "User not found.",
-  });
-}
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+      });
+    }
 
     const myRequests = await Request.find({
       author: req.user.id,
@@ -201,16 +189,16 @@ const createRequest = async (req, res) => {
 
     const lat = Number(
       latitude ??
-      coordinates?.lat ??
-      coordinates?.latitude ??
-      user.coordinates?.lat
+        coordinates?.lat ??
+        coordinates?.latitude ??
+        user.coordinates?.lat,
     );
 
     const lng = Number(
       longitude ??
-      coordinates?.lng ??
-      coordinates?.longitude ??
-      user.coordinates?.lng
+        coordinates?.lng ??
+        coordinates?.longitude ??
+        user.coordinates?.lng,
     );
 
     if (
@@ -252,9 +240,63 @@ const createRequest = async (req, res) => {
 
     const savedRequest = await newRequest.save();
 
+    const io = req.app.get("io");
+
+    if (io) {
+      // ==========================================
+      // APARTMENT REQUEST
+      // ==========================================
+      if (visibility === "apartment") {
+        io.to(user.apartmentId.toString()).emit("notification", {
+          type: "new_request",
+          title: "New Request",
+          message: `${user.fullName} posted a new request: ${savedRequest.title}`,
+          postId: savedRequest._id.toString(),
+          postType: "request",
+        });
+      }
+
+      // ==========================================
+      // NEARBY REQUEST
+      // ==========================================
+      if (visibility === "nearby") {
+        const nearbyUsers = await User.find({
+          _id: { $ne: req.user.id },
+          "coordinates.lat": { $ne: null },
+          "coordinates.lng": { $ne: null },
+        }).lean();
+
+        const radiusKm = Number(savedRequest.radius || 2);
+
+        for (const nearbyUser of nearbyUsers) {
+          const userLat = Number(nearbyUser.coordinates?.lat);
+          const userLng = Number(nearbyUser.coordinates?.lng);
+
+          if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+            continue;
+          }
+
+          const distance = distanceInKm(userLat, userLng, lat, lng);
+
+          console.log(`📍 ${nearbyUser.fullName}: ${distance.toFixed(2)} km`);
+
+          if (distance <= radiusKm) {
+            console.log(`🔔 Sending request notification to ${nearbyUser._id}`);
+
+            io.to(nearbyUser._id.toString()).emit("notification", {
+              type: "new_request",
+              title: "New Nearby Request",
+              message: `${user.fullName} posted "${savedRequest.title}" ${distance.toFixed(1)} km away.`,
+              postId: savedRequest._id.toString(),
+              postType: "request",
+            });
+          }
+        }
+      }
+    }
     const populatedRequest = await savedRequest.populate(
       "author",
-      "fullName location coordinates"
+      "fullName location coordinates",
     );
 
     res.status(201).json(populatedRequest);
@@ -301,8 +343,6 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-   
-
     request.status = status;
 
     const updatedRequest = await request.save();
@@ -341,8 +381,6 @@ const updateRequest = async (req, res) => {
         message: "Not authorized",
       });
     }
-
-   
 
     const allowedFields = [
       "title",
@@ -396,8 +434,6 @@ const deleteRequest = async (req, res) => {
         message: "Not authorized",
       });
     }
-
-    
 
     await request.deleteOne();
 

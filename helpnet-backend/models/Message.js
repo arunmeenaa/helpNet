@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const messageSchema = new mongoose.Schema(
   {
-
     sender: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -46,16 +45,15 @@ const messageSchema = new mongoose.Schema(
 
     apartmentId: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
       lowercase: true,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
-
 
 // Unread messages
 messageSchema.index({
@@ -84,5 +82,4 @@ messageSchema.index({
 });
 
 module.exports =
-  mongoose.models.Message ||
-  mongoose.model("Message", messageSchema);
+  mongoose.models.Message || mongoose.model("Message", messageSchema);

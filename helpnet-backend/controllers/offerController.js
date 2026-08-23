@@ -1,20 +1,7 @@
 const mongoose = require("mongoose");
 const Offer = require("../models/Offer");
 const User = require("../models/User");
-
-const distanceInKm = (lat1, lng1, lat2, lng2) => {
-  const toRad = (value) => (value * Math.PI) / 180;
-  const R = 6371;
-
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-};
+const { distanceInKm } = require("../utils/distance");
 
 const isWithinNearbyRadius = (offer, user) => {
   if (offer.visibility !== "nearby") {
@@ -48,8 +35,7 @@ const isWithinNearbyRadius = (offer, user) => {
 
 const canViewOffer = (offer, user) => {
   const offerAuthorId =
-    offer.author?._id?.toString() ||
-    offer.author?.toString();
+    offer.author?._id?.toString() || offer.author?.toString();
 
   const userId = user._id?.toString();
 
@@ -86,12 +72,9 @@ const getAllOffers = async (req, res) => {
       status: {
         $nin: ["resolved", "cancelled"],
       },
-    })
-      .sort({ createdAt: -1 });
+    }).sort({ createdAt: -1 });
 
-    const visibleOffers = offers.filter((offer) =>
-      canViewOffer(offer, user)
-    );
+    const visibleOffers = offers.filter((offer) => canViewOffer(offer, user));
 
     await Offer.populate(visibleOffers, {
       path: "author",
@@ -256,6 +239,60 @@ const createOffer = async (req, res) => {
 
     const savedOffer = await newOffer.save();
 
+    const io = req.app.get("io");
+
+    if (io) {
+      // ==========================================
+      // APARTMENT OFFER
+      // ==========================================
+      if (visibility === "apartment") {
+        io.to(user.apartmentId.toString()).emit("notification", {
+          type: "new_offer",
+          title: "New Offer",
+          message: `${user.fullName} posted a new offer: ${savedOffer.title}`,
+          postId: savedOffer._id.toString(),
+          postType: "offer",
+        });
+      }
+
+      // ==========================================
+      // NEARBY OFFER
+      // ==========================================
+      if (visibility === "nearby") {
+        const nearbyUsers = await User.find({
+          _id: { $ne: req.user.id },
+          "coordinates.lat": { $ne: null },
+          "coordinates.lng": { $ne: null },
+        }).lean();
+
+        const radiusKm = Number(savedOffer.radius || 5);
+
+        for (const nearbyUser of nearbyUsers) {
+          const userLat = Number(nearbyUser.coordinates?.lat);
+          const userLng = Number(nearbyUser.coordinates?.lng);
+
+          if (!Number.isFinite(userLat) || !Number.isFinite(userLng)) {
+            continue;
+          }
+
+          const distance = distanceInKm(userLat, userLng, lat, lng);
+
+          console.log(`📍 ${nearbyUser.fullName}: ${distance.toFixed(2)} km`);
+
+          if (distance <= radiusKm) {
+            console.log(`🔔 Sending offer notification to ${nearbyUser._id}`);
+
+            io.to(nearbyUser._id.toString()).emit("notification", {
+              type: "new_offer",
+              title: "New Nearby Offer",
+              message: `${user.fullName} posted "${savedOffer.title}" ${distance.toFixed(1)} km away.`,
+              postId: savedOffer._id.toString(),
+              postType: "offer",
+            });
+          }
+        }
+      }
+    }
     const populatedOffer = await savedOffer.populate(
       "author",
       "fullName location coordinates",
