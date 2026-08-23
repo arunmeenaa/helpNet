@@ -167,6 +167,18 @@ const handleSendMessage = async (e) => {
           <hr className="border-gray-100 dark:border-gray-800 mb-8" />
 
           <div className="mb-10">
+            <div className="mb-4">
+              {offer.visibility === "nearby" ? (
+                <span className="inline-flex rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                  📍 Nearby · within {offer.radius || 2} km
+                </span>
+              ) : (
+                <span className="inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                  🏢 Your Apartment
+                </span>
+              )}
+            </div>
+
             <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-6">
               {offer.title}
             </h1>

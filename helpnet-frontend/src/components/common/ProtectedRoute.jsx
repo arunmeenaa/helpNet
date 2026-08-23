@@ -1,4 +1,4 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
 export default function ProtectedRoute({
@@ -8,11 +8,7 @@ export default function ProtectedRoute({
   allowBoth = false,
 }) {
   const token = localStorage.getItem("token");
-  const location = useLocation();
 
-  // ==========================================
-  // NO TOKEN
-  // ==========================================
   if (!token) {
     return <Navigate to="/login" replace />;
   }
@@ -21,75 +17,30 @@ export default function ProtectedRoute({
     const decoded = jwtDecode(token);
     const role = decoded.role;
 
-    // ==========================================
-    // INVALID ROLE
-    // ==========================================
+    // Validate role
     if (!["owner", "resident"].includes(role)) {
       localStorage.clear();
       return <Navigate to="/login" replace />;
     }
 
-    // ==========================================
-    // OWNER ONLY
-    // ==========================================
+    // Owner-only route
     if (ownerOnly && role !== "owner") {
       return <Navigate to="/dashboard" replace />;
     }
 
-    // ==========================================
-    // RESIDENT ONLY
-    // ==========================================
+    // Resident-only route
     if (residentOnly && role !== "resident") {
-      return (
-        <Navigate
-          to="/owner-dashboard"
-          replace
-        />
-      );
+      return <Navigate to="/owner-dashboard" replace />;
     }
 
-    // ==========================================
-    // BOTH OWNER + RESIDENT
-    // ==========================================
+    // Both owner and resident are allowed
     if (allowBoth) {
       return children;
     }
 
-    // ==========================================
-    // RESIDENT APARTMENT CHECK
-    // ==========================================
-    if (role === "resident") {
-      const localUser = JSON.parse(
-        localStorage.getItem("user") || "{}"
-      );
-
-      if (!localUser.apartmentId) {
-        const allowedPaths = [
-          "/dashboard",
-          "/set-apartment",
-        ];
-
-        if (!allowedPaths.includes(location.pathname)) {
-          return (
-            <Navigate
-              to="/dashboard"
-              replace
-            />
-          );
-        }
-      }
-    }
-
-    // ==========================================
-    // DEFAULT
-    // ==========================================
     return children;
-
   } catch (error) {
-    console.error(
-      "ProtectedRoute error:",
-      error
-    );
+    console.error("ProtectedRoute error:", error);
 
     localStorage.clear();
 

@@ -31,12 +31,6 @@ const sendMessage = async (req, res) => {
     const { receiverId, content, relatedPostId, postTitle, postType } =
       req.body;
 
-    if (!req.user.apartmentId) {
-      return res.status(400).json({
-        message: "Please join an apartment community first.",
-      });
-    }
-
     if (!content || !content.trim()) {
       return res.status(400).json({
         message: "Message cannot be empty.",
@@ -95,15 +89,6 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    // FIX 1: Convert ObjectIds to strings before comparing
-    if (
-      receiverUser.apartmentId?.toString() !== req.user.apartmentId?.toString()
-    ) {
-      return res.status(403).json({
-        message: "Users must be in the same apartment to chat.",
-      });
-    }
-
     let relatedPost = null;
 
     if (cleanPostType === "request") {
@@ -120,13 +105,56 @@ const sendMessage = async (req, res) => {
       }
     }
 
-    if (
-      relatedPost &&
-      relatedPost.apartmentId?.toString() !== req.user.apartmentId?.toString()
-    ) {
-      return res.status(403).json({
-        message: "You cannot message users about posts from another apartment.",
-      });
+    if (relatedPost) {
+      // Apartment posts are restricted to the same apartment.
+      if (
+        relatedPost.visibility === "apartment" &&
+        relatedPost.apartmentId?.toString() !== req.user.apartmentId?.toString()
+      ) {
+        return res.status(403).json({
+          message:
+            "You cannot message users about posts from another apartment.",
+        });
+      }
+
+      // Nearby posts are restricted by the post owner's location/radius.
+      if (relatedPost.visibility === "nearby") {
+        const senderUser = await User.findById(req.user.id).lean();
+
+        const lat1 = senderUser?.coordinates?.lat;
+        const lng1 = senderUser?.coordinates?.lng;
+        const lat2 = relatedPost.locationCoordinates?.lat;
+        const lng2 = relatedPost.locationCoordinates?.lng;
+
+        if (
+          !Number.isFinite(lat1) ||
+          !Number.isFinite(lng1) ||
+          !Number.isFinite(lat2) ||
+          !Number.isFinite(lng2)
+        ) {
+          return res.status(403).json({
+            message: "Location is required to contact a nearby post.",
+          });
+        }
+
+        const toRad = (value) => (value * Math.PI) / 180;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(lat1)) *
+            Math.cos(toRad(lat2)) *
+            Math.sin(dLng / 2) ** 2;
+
+        const distanceKm =
+          6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+        if (distanceKm > Number(relatedPost.radius || 2)) {
+          return res.status(403).json({
+            message: "You are outside this post's nearby radius.",
+          });
+        }
+      }
     }
 
     const newMessage = new Message({
@@ -168,22 +196,21 @@ const sendMessage = async (req, res) => {
 
 const getInbox = async (req, res) => {
   try {
-    if (!req.user.apartmentId) {
-      return res.status(400).json({
-        message: "Set apartment first",
-      });
-    }
+    const userId = req.user.id;
 
     const messages = await Message.find({
-      receiver: req.user.id,
-      apartmentId: req.user.apartmentId,
+      $or: [
+        { sender: userId },
+        { receiver: userId },
+      ],
     })
-      .populate("sender", "fullName")
+      .populate("sender", "fullName email profilePic")
+      .populate("receiver", "fullName email profilePic")
       .sort({ createdAt: -1 });
 
     res.json(messages);
   } catch (error) {
-    console.error("INBOX ERROR:", error.message);
+    console.error("GET INBOX ERROR:", error);
 
     res.status(500).json({
       message: "Server Error",

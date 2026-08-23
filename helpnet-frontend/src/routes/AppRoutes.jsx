@@ -21,7 +21,7 @@ import Profile from "../pages/profile/Profile";
 import UserProfile from "../pages/profile/UserProfile";
 
 // Requests
-import AvailableHelp from "../pages/requests/AvailableHelp";
+import AvailableOffers from "../pages/offers/AvailableOffers";
 import RequestsFeed from "../pages/requests/RequestsFeed";
 import PostRequest from "../pages/requests/PostRequest";
 import RequestDetails from "../pages/requests/RequestDetails";
@@ -74,7 +74,7 @@ const AppRoutes = ({ user }) => {
 
       {/* ================= REQUESTS ================= */}
 
-      <Route path="/findHelp" element={<AvailableHelp />} />
+      <Route path="/findHelp" element={<AvailableOffers />} />
 
       <Route path="/RequestsFeed" element={<RequestsFeed />} />
 

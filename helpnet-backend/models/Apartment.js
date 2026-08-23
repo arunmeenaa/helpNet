@@ -10,12 +10,10 @@ const apartmentSchema = new mongoose.Schema(
 
     apartmentId: {
       type: String,
-      required: true,
-      unique: true,
+      default: null,
       trim: true,
       lowercase: true,
     },
-
 
     owner: {
       type: mongoose.Schema.Types.ObjectId,

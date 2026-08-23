@@ -146,6 +146,14 @@ export default function RequestDetails() {
             </span>
           </div>
 
+          <div className="mb-4">
+            { request.visibility === "nearby" ? (
+              <span className="inline-flex rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">📍 Nearby · within { request.radius || 2 } km</span>
+            ) : (
+              <span className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">🏢 Your Apartment</span>
+            )}
+          </div>
+
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-6">
             {request.title}
           </h1>

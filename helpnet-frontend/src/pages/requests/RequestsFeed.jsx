@@ -4,6 +4,7 @@ import Navbar from "../../components/layout/Navbar";
 import Footer from "../../components/layout/Footer";
 import { getRequests } from "../../services/requestService";
 import { getInbox } from "../../services/messageService";
+import { syncCurrentLocation } from "../../services/profileService";
 import socket from "../../socket";
 import SkeletonCard from "../../components/common/SkeletonCard";
 import { jwtDecode } from "jwt-decode";
@@ -28,7 +29,9 @@ const sameId = (first, second) =>
   first != null && second != null && String(first) === String(second);
 
 const normalizePriority = (value) => {
-  const priority = String(value || "").trim().toLowerCase();
+  const priority = String(value || "")
+    .trim()
+    .toLowerCase();
 
   if (priority === "high") return "High";
   if (priority === "medium" || priority === "moderate") return "Medium";
@@ -51,7 +54,8 @@ export default function RequestsFeed() {
   const apartmentId = storedUser?.apartmentId;
 
   const decodedToken = token ? jwtDecode(token) : null;
-  const currentUserId = decodedToken?.id || decodedToken?.sub || getId(storedUser);
+  const currentUserId =
+    decodedToken?.id || decodedToken?.sub || getId(storedUser);
 
   // ==========================================
   // 🚨 GUEST GUARD
@@ -114,85 +118,79 @@ export default function RequestsFeed() {
     );
   }
 
-  // ==========================================
-  // 👤 FETCH LOGIC
-  // ==========================================
   const fetchRequests = useCallback(async () => {
-    if (!apartmentId) {
-      setLoading(false);
+  try {
+    await syncCurrentLocation();
+
+    const [requestsData, inboxResponse] = await Promise.allSettled([
+      getRequests(),
+      getInbox(),
+    ]);
+
+    if (requestsData.status === "fulfilled") {
+      setRequests(requestsData.value || []);
+    } else {
+      throw requestsData.reason;
+    }
+
+    if (inboxResponse.status === "fulfilled") {
+      const rawInbox = Array.isArray(inboxResponse.value)
+        ? inboxResponse.value
+        : inboxResponse.value?.messages ||
+          inboxResponse.value?.data ||
+          [];
+
+      const conversedPostIds = rawInbox
+        .map(
+          (msg) =>
+            msg.relatedPostId ||
+            msg.postId ||
+            msg.post?._id ||
+            msg.requestId ||
+            msg.offerId
+        )
+        .filter(Boolean);
+
+      setActiveConversations(conversedPostIds.map(String));
+    }
+
+    setError("");
+  } catch (err) {
+    console.error("FETCH REQUESTS ERROR:", err);
+
+    if (
+      err.message?.includes("removed") ||
+      err.message?.includes("evicted")
+    ) {
+      toast.error(
+        "Access Denied: You have been removed from this apartment community.",
+        {
+          duration: 5000,
+          id: "eviction-alert",
+        }
+      );
+
+      const updatedUser = {
+        ...storedUser,
+        apartmentId: null,
+        isEvicted: true,
+      };
+
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event("local-storage-update"));
+
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 0);
+
       return;
     }
 
-    try {
-      // Fetch both community requests and active conversations simultaneously
-      const [requestsData, inboxResponse] = await Promise.allSettled([
-        getRequests(),
-        getInbox(),
-      ]);
-
-      if (requestsData.status === "fulfilled") {
-        setRequests(requestsData.value || []);
-      } else {
-        throw requestsData.reason;
-      }
-
-      if (inboxResponse.status === "fulfilled") {
-        const rawInbox = Array.isArray(inboxResponse.value)
-          ? inboxResponse.value
-          : inboxResponse.value?.messages || inboxResponse.value?.data || [];
-
-        // Extract related post/request IDs that current user is chatting about
-        const conversedPostIds = rawInbox
-          .map(
-            (msg) =>
-              msg.relatedPostId ||
-              msg.postId ||
-              msg.post?._id ||
-              msg.requestId ||
-              msg.offerId,
-          )
-          .filter(Boolean);
-
-        setActiveConversations(conversedPostIds.map(String));
-      }
-
-      setError("");
-    } catch (err) {
-      console.error("FETCH REQUESTS ERROR:", err);
-
-      if (
-        err.message?.includes("removed") ||
-        err.message?.includes("evicted")
-      ) {
-        toast.error(
-          "Access Denied: You have been removed from this apartment community.",
-          {
-            duration: 5000,
-            id: "eviction-alert",
-          },
-        );
-
-        const updatedUser = {
-          ...storedUser,
-          apartmentId: null,
-          isEvicted: true,
-        };
-
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        window.dispatchEvent(new Event("local-storage-update"));
-
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 0);
-
-        return;
-      }
-
-      setError(err.message || "Failed to fetch requests");
-    } finally {
-      setLoading(false);
-    }
-  }, [apartmentId, navigate, storedUser]);
+    setError(err.message || "Failed to fetch requests");
+  } finally {
+    setLoading(false);
+  }
+}, [navigate]);
 
   useEffect(() => {
     fetchRequests();
@@ -210,10 +208,7 @@ export default function RequestsFeed() {
     };
   }, [fetchRequests]);
 
-  if (!apartmentId) {
-    navigate("/dashboard");
-    return null;
-  }
+  
 
   const filteredRequests = requests.filter((req) => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -306,9 +301,7 @@ export default function RequestsFeed() {
             {filteredRequests.map((req) => {
               const authorId = getId(req.author);
               const isOwner = sameId(currentUserId, authorId);
-              const hasMessaged = activeConversations.includes(
-                String(req._id),
-              );
+              const hasMessaged = activeConversations.includes(String(req._id));
 
               return (
                 <div
@@ -388,9 +381,24 @@ export default function RequestsFeed() {
                           : "border-gray-100 bg-gray-50 text-gray-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-400"
                       }`}
                     >
-                      <MapPin size={16} className="shrink-0 text-blue-500 dark:text-cyan-400" />
+                      <MapPin
+                        size={16}
+                        className="shrink-0 text-blue-500 dark:text-cyan-400"
+                      />
                       <span className="truncate">{req.location}</span>
                     </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2 text-xs font-bold">
+                    {req.visibility === "nearby" ? (
+                      <span className="rounded-full bg-cyan-50 px-3 py-1 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                        📍 Nearby · within {req.radius || 2} km
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                        🏢 Your Apartment
+                      </span>
+                    )}
                   </div>
 
                   {/* ACTION BUTTON DECISION */}
@@ -415,8 +423,7 @@ export default function RequestsFeed() {
                       to={`/request-details/${req._id}`}
                       className="relative z-10 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-cyan-500 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
                     >
-                        <HandHeart size={18} />
-                        I Can Help
+                      <HandHeart size={18} />I Can Help
                     </Link>
                   )}
                 </div>

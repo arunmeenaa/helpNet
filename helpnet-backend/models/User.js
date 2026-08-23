@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema(
   {
-   
     fullName: {
       type: String,
       required: true,
@@ -50,7 +49,18 @@ const UserSchema = new mongoose.Schema(
 
     location: {
       type: String,
-      trim: true,
+      default: "",
+    },
+
+    coordinates: {
+      lat: {
+        type: Number,
+        default: null,
+      },
+      lng: {
+        type: Number,
+        default: null,
+      },
     },
 
     bio: {
@@ -67,15 +77,11 @@ const UserSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
-
 
 UserSchema.index({
   apartmentId: 1,
 });
 
-
-module.exports =
-  mongoose.models.User ||
-  mongoose.model("User", UserSchema);
+module.exports = mongoose.models.User || mongoose.model("User", UserSchema);

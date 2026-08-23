@@ -1,24 +1,104 @@
 const mongoose = require("mongoose");
 const Offer = require("../models/Offer");
+const User = require("../models/User");
+
+const distanceInKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const isWithinNearbyRadius = (offer, user) => {
+  if (offer.visibility !== "nearby") {
+    return false;
+  }
+
+  const offerLat = offer.locationCoordinates?.lat;
+  const offerLng = offer.locationCoordinates?.lng;
+
+  const userLat = user.coordinates?.lat;
+  const userLng = user.coordinates?.lng;
+
+  if (
+    !Number.isFinite(Number(offerLat)) ||
+    !Number.isFinite(Number(offerLng)) ||
+    !Number.isFinite(Number(userLat)) ||
+    !Number.isFinite(Number(userLng))
+  ) {
+    return false;
+  }
+
+  const distance = distanceInKm(
+    Number(userLat),
+    Number(userLng),
+    Number(offerLat),
+    Number(offerLng),
+  );
+
+  return distance <= Number(offer.radius || 2);
+};
+
+const canViewOffer = (offer, user) => {
+  const offerAuthorId =
+    offer.author?._id?.toString() ||
+    offer.author?.toString();
+
+  const userId = user._id?.toString();
+
+  // Own offer
+  if (offerAuthorId === userId) {
+    return true;
+  }
+
+  // Apartment offer
+  if (
+    offer.visibility === "apartment" &&
+    offer.apartmentId &&
+    user.apartmentId &&
+    offer.apartmentId.toString() === user.apartmentId.toString()
+  ) {
+    return true;
+  }
+
+  // Nearby offer
+  return isWithinNearbyRadius(offer, user);
+};
 
 const getAllOffers = async (req, res) => {
   try {
-    if (!req.user.apartmentId) {
-      return res.status(400).json({
-        message: "Set apartment first",
+    const user = await User.findById(req.user.id).lean();
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User not found",
       });
     }
 
     const offers = await Offer.find({
-      apartmentId: req.user.apartmentId,
       status: {
         $nin: ["resolved", "cancelled"],
       },
     })
-      .populate("author", "fullName")
       .sort({ createdAt: -1 });
 
-    res.json(offers);
+    const visibleOffers = offers.filter((offer) =>
+      canViewOffer(offer, user)
+    );
+
+    await Offer.populate(visibleOffers, {
+      path: "author",
+      select: "fullName location coordinates",
+    });
+
+    res.json(visibleOffers);
   } catch (error) {
     console.error("Get offers error:", error);
 
@@ -62,9 +142,11 @@ const getOfferById = async (req, res) => {
       });
     }
 
-    if (offer.apartmentId !== req.user.apartmentId) {
+    const user = await User.findById(req.user.id).lean();
+
+    if (!user || !canViewOffer(offer, user)) {
       return res.status(403).json({
-        message: "Access denied",
+        message: "This offer is not available in your area.",
       });
     }
 
@@ -80,13 +162,26 @@ const getOfferById = async (req, res) => {
 
 const createOffer = async (req, res) => {
   try {
-    if (!req.user.apartmentId) {
-      return res.status(400).json({
-        message: "Set apartment first",
+    const user = await User.findById(req.user.id).lean();
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
       });
     }
 
-    const { title, description, location } = req.body;
+    const {
+      title,
+      description,
+      category,
+      location,
+      availability,
+      visibility = "apartment",
+      radius = 5,
+      latitude,
+      longitude,
+      coordinates,
+    } = req.body;
 
     if (!title || !description || !location) {
       return res.status(400).json({
@@ -94,17 +189,77 @@ const createOffer = async (req, res) => {
       });
     }
 
+    if (!["apartment", "nearby"].includes(visibility)) {
+      return res.status(400).json({
+        message: "Invalid visibility.",
+      });
+    }
+
+    // Apartment posts require an apartment
+    if (visibility === "apartment" && !user.apartmentId) {
+      return res.status(400).json({
+        message: "You must join an apartment to create an apartment offer.",
+      });
+    }
+
+    const lat = Number(
+      latitude ??
+        coordinates?.lat ??
+        coordinates?.latitude ??
+        user.coordinates?.lat,
+    );
+
+    const lng = Number(
+      longitude ??
+        coordinates?.lng ??
+        coordinates?.longitude ??
+        user.coordinates?.lng,
+    );
+
+    // Nearby posts require coordinates
+    if (
+      visibility === "nearby" &&
+      (!Number.isFinite(lat) || !Number.isFinite(lng))
+    ) {
+      return res.status(400).json({
+        message:
+          "Location coordinates are required for nearby posts. Enable location access or update your profile location.",
+      });
+    }
+
     const newOffer = new Offer({
       title,
       description,
+      category,
       location,
+      availability,
+
       author: req.user.id,
-      apartmentId: req.user.apartmentId,
+
+      apartmentId: user.apartmentId || null,
+
+      visibility,
+
+      radius:
+        visibility === "nearby"
+          ? Math.min(Math.max(Number(radius) || 5, 1), 20)
+          : 2,
+
+      locationCoordinates:
+        Number.isFinite(lat) && Number.isFinite(lng)
+          ? {
+              lat,
+              lng,
+            }
+          : undefined,
     });
 
     const savedOffer = await newOffer.save();
 
-    const populatedOffer = await savedOffer.populate("author", "fullName");
+    const populatedOffer = await savedOffer.populate(
+      "author",
+      "fullName location coordinates",
+    );
 
     res.status(201).json(populatedOffer);
   } catch (error) {
@@ -140,13 +295,14 @@ const updateOffer = async (req, res) => {
       });
     }
 
-    if (offer.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied",
-      });
-    }
-
-    const allowedFields = ["title", "description", "location", "status"];
+    const allowedFields = [
+      "title",
+      "description",
+      "location",
+      "status",
+      "visibility",
+      "radius",
+    ];
 
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
@@ -199,12 +355,6 @@ const updateOfferStatus = async (req, res) => {
       });
     }
 
-    if (offer.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied",
-      });
-    }
-
     offer.status = status;
 
     const updatedOffer = await offer.save();
@@ -240,11 +390,6 @@ const deleteOffer = async (req, res) => {
     if (offer.author.toString() !== req.user.id.toString()) {
       return res.status(401).json({
         message: "Not authorized",
-      });
-    }
-    if (offer.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied",
       });
     }
 

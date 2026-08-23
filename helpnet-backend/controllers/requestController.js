@@ -2,30 +2,88 @@ const mongoose = require("mongoose");
 const Request = require("../models/Request");
 const User = require("../models/User");
 
-// ==========================================
-// GET ALL REQUESTS
-// ==========================================
+const distanceInKm = (lat1, lng1, lat2, lng2) => {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const R = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const isWithinNearbyRadius = (post, user) => {
+  if (post.visibility !== "nearby") {
+    return false;
+  }
+
+  const postLat = post.locationCoordinates?.lat;
+  const postLng = post.locationCoordinates?.lng;
+
+  const userLat = user.coordinates?.lat;
+  const userLng = user.coordinates?.lng;
+
+  if (
+    !Number.isFinite(Number(postLat)) ||
+    !Number.isFinite(Number(postLng)) ||
+    !Number.isFinite(Number(userLat)) ||
+    !Number.isFinite(Number(userLng))
+  ) {
+    return false;
+  }
+
+  const distance = distanceInKm(
+    Number(userLat),
+    Number(userLng),
+    Number(postLat),
+    Number(postLng),
+  );
+
+  return distance <= Number(post.radius || 2);
+};
+
+const canViewRequest = (request, user) => {
+  if (request.author?.toString() === user._id?.toString()) {
+    return true;
+  }
+
+  if (
+    request.visibility === "apartment" &&
+    request.apartmentId?.toString() === user.apartmentId?.toString()
+  ) {
+    return true;
+  }
+
+  return isWithinNearbyRadius(request, user);
+};
+
 const getAllRequests = async (req, res) => {
   try {
-    // Get fresh user data from database
     const user = await User.findById(req.user.id).lean();
 
-    if (!user || !user.apartmentId) {
-      return res.status(403).json({
-        message: "You are no longer a member of an apartment community.",
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
       });
     }
 
     const requests = await Request.find({
-      apartmentId: user.apartmentId,
       status: {
         $nin: ["resolved", "cancelled"],
       },
     })
-      .populate("author", "fullName")
+      .populate("author", "fullName location")
       .sort({ createdAt: -1 });
 
-    res.json(requests);
+    const visibleRequests = requests.filter((request) =>
+      canViewRequest(request, user),
+    );
+
+    res.json(visibleRequests);
   } catch (error) {
     console.error("Get requests error:", error);
 
@@ -35,19 +93,15 @@ const getAllRequests = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET MY REQUESTS
-// ==========================================
 const getMyRequests = async (req, res) => {
   try {
-    // Verify current apartment membership
     const user = await User.findById(req.user.id).lean();
 
-    if (!user || !user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied. No apartment assigned.",
-      });
-    }
+   if (!user) {
+  return res.status(404).json({
+    message: "User not found.",
+  });
+}
 
     const myRequests = await Request.find({
       author: req.user.id,
@@ -63,9 +117,6 @@ const getMyRequests = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET SINGLE REQUEST
-// ==========================================
 const getRequestById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -84,10 +135,17 @@ const getRequestById = async (req, res) => {
       });
     }
 
-    // Apartment-level access control
-    if (request.apartmentId !== req.user.apartmentId) {
+    const user = await User.findById(req.user.id).lean();
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User not found",
+      });
+    }
+
+    if (!canViewRequest(request, user)) {
       return res.status(403).json({
-        message: "Access denied",
+        message: "This request is not available in your area.",
       });
     }
 
@@ -101,26 +159,67 @@ const getRequestById = async (req, res) => {
   }
 };
 
-// ==========================================
-// CREATE REQUEST
-// ==========================================
 const createRequest = async (req, res) => {
   try {
-    const { title, description, location, priority } = req.body;
+    const {
+      title,
+      description,
+      location,
+      priority,
+      visibility = "apartment",
+      radius = 2,
+      latitude,
+      longitude,
+      coordinates,
+    } = req.body;
 
-    // Get fresh user data
-    const user = await User.findById(req.user.id).lean();
-
-    if (!user || !user.apartmentId) {
-      return res.status(403).json({
-        message: "You must be in an apartment to post requests.",
+    if (!["apartment", "nearby"].includes(visibility)) {
+      return res.status(400).json({
+        message: "Invalid visibility.",
       });
     }
 
-    // Validate fields
+    const user = await User.findById(req.user.id).lean();
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+      });
+    }
+
+    if (visibility === "apartment" && !user.apartmentId) {
+      return res.status(403).json({
+        message: "You must be in an apartment to create an apartment request.",
+      });
+    }
+
     if (!title || !description || !location || !priority) {
       return res.status(400).json({
-        message: "All fields are required",
+        message: "All fields are required.",
+      });
+    }
+
+    const lat = Number(
+      latitude ??
+      coordinates?.lat ??
+      coordinates?.latitude ??
+      user.coordinates?.lat
+    );
+
+    const lng = Number(
+      longitude ??
+      coordinates?.lng ??
+      coordinates?.longitude ??
+      user.coordinates?.lng
+    );
+
+    if (
+      visibility === "nearby" &&
+      (!Number.isFinite(lat) || !Number.isFinite(lng))
+    ) {
+      return res.status(400).json({
+        message:
+          "Location coordinates are required for nearby posts. Enable location access first.",
       });
     }
 
@@ -129,13 +228,34 @@ const createRequest = async (req, res) => {
       description,
       location,
       priority,
+
       author: req.user.id,
-      apartmentId: user.apartmentId,
+
+      // Keep apartmentId for compatibility.
+      apartmentId: user.apartmentId || null,
+
+      visibility,
+
+      radius:
+        visibility === "nearby"
+          ? Math.min(Math.max(Number(radius) || 2, 1), 20)
+          : 2,
+
+      locationCoordinates:
+        Number.isFinite(lat) && Number.isFinite(lng)
+          ? {
+              lat,
+              lng,
+            }
+          : undefined,
     });
 
     const savedRequest = await newRequest.save();
 
-    const populatedRequest = await savedRequest.populate("author", "fullName");
+    const populatedRequest = await savedRequest.populate(
+      "author",
+      "fullName location coordinates"
+    );
 
     res.status(201).json(populatedRequest);
   } catch (error) {
@@ -147,9 +267,6 @@ const createRequest = async (req, res) => {
   }
 };
 
-// ==========================================
-// UPDATE REQUEST STATUS
-// ==========================================
 const updateRequestStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -184,12 +301,7 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    // Apartment access control
-    if (request.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied",
-      });
-    }
+   
 
     request.status = status;
 
@@ -205,9 +317,6 @@ const updateRequestStatus = async (req, res) => {
   }
 };
 
-// ==========================================
-// UPDATE REQUEST
-// ==========================================
 const updateRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -233,12 +342,7 @@ const updateRequest = async (req, res) => {
       });
     }
 
-    // Apartment access control
-    if (request.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied",
-      });
-    }
+   
 
     const allowedFields = [
       "title",
@@ -246,6 +350,8 @@ const updateRequest = async (req, res) => {
       "location",
       "priority",
       "status",
+      "visibility",
+      "radius",
     ];
 
     allowedFields.forEach((field) => {
@@ -266,9 +372,6 @@ const updateRequest = async (req, res) => {
   }
 };
 
-// ==========================================
-// DELETE REQUEST
-// ==========================================
 const deleteRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -294,12 +397,7 @@ const deleteRequest = async (req, res) => {
       });
     }
 
-    // Apartment access control
-    if (request.apartmentId !== req.user.apartmentId) {
-      return res.status(403).json({
-        message: "Access denied",
-      });
-    }
+    
 
     await request.deleteOne();
 

@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const requestSchema = new mongoose.Schema(
   {
-  
     title: {
       type: String,
       required: true,
@@ -17,10 +16,38 @@ const requestSchema = new mongoose.Schema(
 
     location: {
       type: String,
-      required: true,
-      trim: true,
+      default: "",
     },
 
+    coordinates: {
+      lat: {
+        type: Number,
+        default: null,
+      },
+      lng: {
+        type: Number,
+        default: null,
+      },
+    },
+    radius: {
+      type: Number,
+      default: 2,
+    },
+    // Coordinates of the person who created the post.
+    // [longitude, latitude] is kept as a simple pair so existing
+    // location strings remain backward compatible.
+    locationCoordinates: {
+      lat: {
+        type: Number,
+        min: -90,
+        max: 90,
+      },
+      lng: {
+        type: Number,
+        min: -180,
+        max: 180,
+      },
+    },
     priority: {
       type: String,
       enum: ["high", "medium", "low"],
@@ -34,24 +61,27 @@ const requestSchema = new mongoose.Schema(
       default: "open",
     },
 
-
     author: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
 
- 
     apartmentId: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
       lowercase: true,
+    },
+    visibility: {
+      type: String,
+      enum: ["apartment", "nearby"],
+      default: "apartment",
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 requestSchema.index({
@@ -68,5 +98,4 @@ requestSchema.index({
 });
 
 module.exports =
-  mongoose.models.Request ||
-  mongoose.model("Request", requestSchema);
+  mongoose.models.Request || mongoose.model("Request", requestSchema);

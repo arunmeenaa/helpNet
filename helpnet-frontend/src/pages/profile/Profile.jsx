@@ -35,11 +35,18 @@ export default function Profile() {
           return;
         }
 
-        const [profileData, requestsData, offersData] = await Promise.all([
-          getCurrentUser(),
+        const profileData = await getCurrentUser();
+
+        const [requestsResult, offersResult] = await Promise.allSettled([
           getMyRequests(),
           getMyOffers(),
         ]);
+
+        const requestsData =
+          requestsResult.status === "fulfilled" ? requestsResult.value : [];
+
+        const offersData =
+          offersResult.status === "fulfilled" ? offersResult.value : [];
 
         setStats({
           requests: Array.isArray(requestsData) ? requestsData.length : 0,
@@ -48,30 +55,19 @@ export default function Profile() {
         });
 
         setUserData(profileData);
-
         localStorage.setItem("user", JSON.stringify(profileData));
       } catch (err) {
         console.error("Sync Error:", err);
 
         // Handle eviction
-        if (err.status === 403) {
-          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        if (err.status === 401) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
 
-          const updatedUser = {
-            ...storedUser,
-            apartmentId: null,
-            isEvicted: true,
-          };
-
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-
-          window.dispatchEvent(new Event("local-storage-update"));
-
-          toast.error("You are no longer in this community.");
-
-          navigate("/dashboard");
+          navigate("/login");
           return;
         }
+        toast.error(err.message || "Failed to load profile.");
 
         if (err.status === 401) {
           localStorage.removeItem("token");
@@ -141,50 +137,47 @@ export default function Profile() {
     }
   };
 
-const handleFileChange = async (e) => {
-  const file = e.target.files?.[0];
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
 
-  if (!file) return;
+    if (!file) return;
 
-  if (!file.type.startsWith("image/")) {
-    toast.error("Please select an image file.");
-    return;
-  }
-
-  if (file.size > 2 * 1024 * 1024) {
-    toast.error("File is too large. Maximum size is 2MB.");
-    return;
-  }
-
-  try {
-    setUploading(true);
-
-    const uploadFunction =
-      currentUser?.role === "owner"
-        ? uploadOwnerProfilePicture
-        : uploadUserProfilePicture;
-
-    const data = await uploadFunction(file);
-
-    // Update local storage
-    if (data.user) {
-      localStorage.setItem(
-        "user",
-        JSON.stringify(data.user)
-      );
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
     }
 
-    setUserData(data.user);
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("File is too large. Maximum size is 2MB.");
+      return;
+    }
 
-    toast.success("Profile picture updated successfully!");
-  } catch (error) {
-    console.error("Upload error:", error);
-    toast.error(error.message || "Upload failed.");
-  } finally {
-    setUploading(false);
-    e.target.value = "";
-  }
-};
+    try {
+      setUploading(true);
+
+      const uploadFunction =
+        currentUser?.role === "owner"
+          ? uploadProfilePicture
+          : uploadUserProfilePicture;
+
+      const data = await uploadFunction(file);
+
+      // Update local storage
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
+      setUserData(data.user);
+
+      toast.success("Profile picture updated successfully!");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(error.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
 
   const EditableField = ({ label, value, fieldName, icon }) => {
     const isThisEditing = editingField === fieldName;
@@ -248,7 +241,10 @@ const handleFileChange = async (e) => {
   }
 `}
                 >
-                  {value || `Add ${label}`}
+                  {value ||
+                    (fieldName === "apartmentId"
+                      ? "No apartment joined"
+                      : `Add ${label}`)}
                 </span>
               </div>
 
@@ -370,7 +366,7 @@ const handleFileChange = async (e) => {
                 />
 
                 <EditableField
-                  label="Apartment ID"
+                  label="Apartment"
                   value={userData.apartmentId}
                   fieldName="apartmentId"
                   icon="🏢"

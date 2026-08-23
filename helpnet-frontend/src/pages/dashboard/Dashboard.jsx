@@ -8,13 +8,7 @@ import API_URL from "../../api";
 import { toast } from "react-hot-toast";
 import { useNavigate, useLocation } from "react-router-dom";
 
-import {
-  CheckCircle,
-  RotateCcw,
-  Edit3,
-  Trash2,
-  Building,
-} from "lucide-react";
+import { CheckCircle, RotateCcw, Edit3, Trash2, Building } from "lucide-react";
 
 import { io } from "socket.io-client";
 import { jwtDecode } from "jwt-decode";
@@ -174,7 +168,7 @@ export default function Dashboard() {
   };
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!token || !apartmentIdFromStorage) {
+      if (!token) {
         setLoading(false);
         return;
       }
@@ -198,7 +192,6 @@ export default function Dashboard() {
             author: o.author?._id || o.author,
           })),
         ]);
-
       } catch (err) {
         console.error("Sync Error:", err);
       } finally {
@@ -207,7 +200,7 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
-  }, [token, apartmentIdFromStorage]);
+  }, [token]);
 
   useEffect(() => {
     const fetchFreshUser = async () => {
@@ -246,72 +239,51 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
-  // ==========================================
-  // 🚨 GATEKEEPER UI
-  // ==========================================
-  if (!hasApartment) {
-    const isOwner = localStorageUser.role === "owner";
-    return (
-      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
-        <Navbar />
-        <main className="flex-grow flex items-center justify-center px-4 py-12">
-          <div className="max-w-md w-full relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-8 md:p-10 border border-white/20 dark:border-gray-800/50 text-center">
-            {hasPendingRequest ? (
-              <div className="space-y-4 animate-in fade-in zoom-in duration-500">
-                <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle size={40} />
-                </div>
-                <h2 className="text-2xl font-black text-gray-900 dark:text-white">
-                  Request Sent!
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  Your request is with the admin. Hang tight, they will approve
-                  it soon!
-                </p>
-              </div>
-            ) : (
-              <>
-                <div
-                  className={`w-20 h-20 mx-auto mb-6 rounded-3xl flex items-center justify-center shadow-lg ${isOwner ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" : "bg-blue-100 dark:bg-blue-900/30 text-blue-600"}`}
-                >
-                  <Building size={40} />
-                </div>
-                <h2 className="text-2xl font-black text-gray-900 dark:text-white">
-                  {isOwner ? "Set Up Apartment" : "First Join a Community"}
-                </h2>
-                <form
-                  onSubmit={handleJoinApartment}
-                  className="space-y-4 mt-6 text-left"
-                >
-                  <input
-                    type="text"
-                    placeholder="Enter Apartment ID"
-                    className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 uppercase font-mono tracking-widest"
-                    value={newApartmentId}
-                    onChange={(e) => setNewApartmentId(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700"
-                  >
-                    {loading ? "Processing..." : "Submit Request"}
-                  </button>
-                </form>
-              </>
-            )}
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 transition-colors duration-300 overflow-x-hidden">
       <Navbar />
       <main className="flex-grow max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 md:py-12">
         <header className="mb-8">
+          {!hasApartment && (
+            <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-bold text-gray-900 dark:text-white">
+                    You haven't joined an apartment yet
+                  </p>
+
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    You can still create and view nearby posts. Join an
+                    apartment to access apartment-only posts.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const apartmentId = window.prompt(
+                      "Enter your Apartment ID",
+                    );
+
+                    if (apartmentId?.trim()) {
+                      setNewApartmentId(apartmentId.trim());
+                      createJoinRequest(apartmentId.trim())
+                        .then(() => {
+                          toast.success("Request sent to Admin!");
+                          setHasPendingRequest(true);
+                        })
+                        .catch((err) => {
+                          toast.error(err.message);
+                        });
+                    }
+                  }}
+                  className="shrink-0 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+                >
+                  Join Apartment
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white truncate">
               Welcome, {user?.fullName}!
@@ -326,19 +298,30 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="flex gap-4 border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <div className="flex items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-800 mb-8">
+          <div className="flex gap-4 overflow-x-auto no-scrollbar whitespace-nowrap">
+            <button
+              onClick={() => setActiveTab("requests")}
+              className={`pb-4 px-2 font-bold text-sm transition-all ${activeTab === "requests" ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-400"}`}
+            >
+              My Requests (
+              {myPosts.filter((p) => p.postType === "requests").length})
+            </button>
+            <button
+              onClick={() => setActiveTab("offers")}
+              className={`pb-4 px-2 font-bold text-sm transition-all ${activeTab === "offers" ? "text-teal-600 border-b-2 border-teal-600" : "text-gray-400"}`}
+            >
+              My Offers ({myPosts.filter((p) => p.postType === "offers").length})
+            </button>
+          </div>
+
           <button
-            onClick={() => setActiveTab("requests")}
-            className={`pb-4 px-2 font-bold text-sm transition-all ${activeTab === "requests" ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-400"}`}
+            onClick={() =>
+              navigate(activeTab === "requests" ? "/post" : "/OfferHelp")
+            }
+            className="shrink-0 mb-3 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-colors"
           >
-            My Requests (
-            {myPosts.filter((p) => p.postType === "requests").length})
-          </button>
-          <button
-            onClick={() => setActiveTab("offers")}
-            className={`pb-4 px-2 font-bold text-sm transition-all ${activeTab === "offers" ? "text-teal-600 border-b-2 border-teal-600" : "text-gray-400"}`}
-          >
-            My Offers ({myPosts.filter((p) => p.postType === "offers").length})
+            + New {activeTab === "requests" ? "Request" : "Offer"}
           </button>
         </div>
 

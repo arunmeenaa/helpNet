@@ -1,10 +1,6 @@
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 
-// ==========================================
-// GET MY PROFILE
-// GET /api/profile/me
-// ==========================================
 const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
@@ -32,17 +28,7 @@ const getProfile = async (req, res) => {
   }
 };
 
-// ==========================================
-// SET APARTMENT
-// PATCH /api/profile/set-apartment
-//
-// NOTE:
-// This endpoint is kept temporarily for
-// frontend compatibility.
-//
-// New frontend code should preferably use:
-// PATCH /api/auth/set-apartment
-// ==========================================
+
 const setApartment = async (req, res) => {
   try {
     const { apartmentId } = req.body;
@@ -90,10 +76,7 @@ const setApartment = async (req, res) => {
   }
 };
 
-// ==========================================
-// UPDATE PROFILE
-// PATCH /api/profile
-// ==========================================
+
 const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
@@ -152,8 +135,71 @@ const updateProfile = async (req, res) => {
   }
 };
 
+const updateLocation = async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+
+    
+
+    if (
+      typeof latitude !== "number" ||
+      typeof longitude !== "number"
+    ) {
+      return res.status(400).json({
+        message: "Valid latitude and longitude are required.",
+      });
+    }
+
+    if (latitude < -90 || latitude > 90) {
+      return res.status(400).json({
+        message: "Invalid latitude.",
+      });
+    }
+
+    if (longitude < -180 || longitude > 180) {
+      return res.status(400).json({
+        message: "Invalid longitude.",
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        coordinates: {
+          lat: latitude,
+          lng: longitude,
+        },
+      },
+      {
+        returnDocument: "after",
+        runValidators: true,
+      }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found.",
+      });
+    }
+
+    
+
+    return res.json({
+      message: "Location updated successfully.",
+      user,
+    });
+
+  } catch (error) {
+    console.error("UPDATE LOCATION ERROR:", error);
+
+    return res.status(500).json({
+      message: error.message || "Failed to update location.",
+    });
+  }
+};
 module.exports = {
   getProfile,
   setApartment,
   updateProfile,
+  updateLocation,
 };

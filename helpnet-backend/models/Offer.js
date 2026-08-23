@@ -2,7 +2,6 @@ const mongoose = require("mongoose");
 
 const offerSchema = new mongoose.Schema(
   {
-
     title: {
       type: String,
       required: true,
@@ -17,8 +16,35 @@ const offerSchema = new mongoose.Schema(
 
     location: {
       type: String,
-      required: true,
-      trim: true,
+      default: "",
+    },
+
+    coordinates: {
+      lat: {
+        type: Number,
+        default: null,
+        min: -90,
+        max: 90,
+      },
+      lng: {
+        type: Number,
+        default: null,
+        min: -180,
+        max: 180,
+      },
+    },
+
+    radius: {
+      type: Number,
+      default: 2,
+      min: 1,
+      max: 20,
+    },
+
+    visibility: {
+      type: String,
+      enum: ["apartment", "nearby"],
+      default: "apartment",
     },
 
     status: {
@@ -35,24 +61,17 @@ const offerSchema = new mongoose.Schema(
 
     apartmentId: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
       lowercase: true,
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
-
-
 // Apartment feed
-offerSchema.index({
-  apartmentId: 1,
-});
-
-// Apartment + status feed
 offerSchema.index({
   apartmentId: 1,
   status: 1,
@@ -63,6 +82,4 @@ offerSchema.index({
   author: 1,
 });
 
-module.exports =
-  mongoose.models.Offer ||
-  mongoose.model("Offer", offerSchema);
+module.exports = mongoose.models.Offer || mongoose.model("Offer", offerSchema);
