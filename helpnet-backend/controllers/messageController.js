@@ -199,7 +199,7 @@ const sendMessage = async (req, res) => {
         messageId: payload._id,
       });
 
-      // Update sender's chat/inbox in real time
+      
       io.to(req.user.id.toString()).emit("receive_message", payload);
     }
 

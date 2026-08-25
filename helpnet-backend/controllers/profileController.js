@@ -3,8 +3,7 @@ const generateToken = require("../utils/generateToken");
 
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select("-password");
+    const user = await User.findById(req.user.id).select("-password");
 
     if (!user) {
       return res.status(404).json({
@@ -13,10 +12,7 @@ const getProfile = async (req, res) => {
     }
 
     // Prevent browser/proxy caching of profile data
-    res.setHeader(
-      "Cache-Control",
-      "no-cache, no-store, must-revalidate"
-    );
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
 
     res.json(user);
   } catch (error) {
@@ -28,15 +24,11 @@ const getProfile = async (req, res) => {
   }
 };
 
-
 const setApartment = async (req, res) => {
   try {
     const { apartmentId } = req.body;
 
-    if (
-      !apartmentId ||
-      apartmentId.trim().length < 2
-    ) {
+    if (!apartmentId || apartmentId.trim().length < 2) {
       return res.status(400).json({
         message: "Invalid apartment",
       });
@@ -50,9 +42,7 @@ const setApartment = async (req, res) => {
       });
     }
 
-    user.apartmentId = apartmentId
-      .trim()
-      .toLowerCase();
+    user.apartmentId = apartmentId.trim().toLowerCase();
 
     await user.save();
 
@@ -65,10 +55,7 @@ const setApartment = async (req, res) => {
       apartmentId: user.apartmentId,
     });
   } catch (error) {
-    console.error(
-      "Set apartment error:",
-      error
-    );
+    console.error("Set apartment error:", error);
 
     res.status(500).json({
       message: "Server Error",
@@ -76,18 +63,13 @@ const setApartment = async (req, res) => {
   }
 };
 
-
 const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     const userId = req.user.id;
 
     // Only allow these fields to be changed
-    const allowedFields = [
-      "fullName",
-      "location",
-      "bio",
-    ];
+    const allowedFields = ["fullName", "location", "bio"];
 
     const filteredUpdates = {};
 
@@ -97,9 +79,7 @@ const updateProfile = async (req, res) => {
       }
     });
 
-    if (
-      Object.keys(filteredUpdates).length === 0
-    ) {
+    if (Object.keys(filteredUpdates).length === 0) {
       return res.status(400).json({
         message: "No valid fields provided",
       });
@@ -113,7 +93,7 @@ const updateProfile = async (req, res) => {
       {
         new: true,
         runValidators: true,
-      }
+      },
     ).select("-password");
 
     if (!user) {
@@ -124,10 +104,7 @@ const updateProfile = async (req, res) => {
 
     res.json(user);
   } catch (error) {
-    console.error(
-      "Update profile error:",
-      error
-    );
+    console.error("Update profile error:", error);
 
     res.status(500).json({
       message: "Database update failed",
@@ -139,42 +116,38 @@ const updateLocation = async (req, res) => {
   try {
     const { latitude, longitude } = req.body;
 
-    
+    const lat = Number(latitude);
+    const lng = Number(longitude);
 
     if (
-      typeof latitude !== "number" ||
-      typeof longitude !== "number"
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
     ) {
       return res.status(400).json({
-        message: "Valid latitude and longitude are required.",
-      });
-    }
-
-    if (latitude < -90 || latitude > 90) {
-      return res.status(400).json({
-        message: "Invalid latitude.",
-      });
-    }
-
-    if (longitude < -180 || longitude > 180) {
-      return res.status(400).json({
-        message: "Invalid longitude.",
+        message: "Invalid coordinates.",
       });
     }
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
       {
-        coordinates: {
-          lat: latitude,
-          lng: longitude,
+        $set: {
+          coordinates: {
+            lat,
+            lng,
+          },
+          locationUpdatedAt: new Date(),
         },
       },
       {
         returnDocument: "after",
         runValidators: true,
-      }
-    ).select("-password");
+      },
+    ).lean();
 
     if (!user) {
       return res.status(404).json({
@@ -182,21 +155,28 @@ const updateLocation = async (req, res) => {
       });
     }
 
-    
+    console.log("========== UPDATE LOCATION ==========");
+    console.log("USER:", req.user.id);
+    console.log("LATITUDE:", lat);
+    console.log("LONGITUDE:", lng);
+    console.log("LOCATION UPDATED:", user.coordinates);
+    console.log("UPDATED AT:", user.locationUpdatedAt);
+    console.log("=====================================");
 
     return res.json({
       message: "Location updated successfully.",
-      user,
+      coordinates: user.coordinates,
+      locationUpdatedAt: user.locationUpdatedAt,
     });
-
   } catch (error) {
     console.error("UPDATE LOCATION ERROR:", error);
 
     return res.status(500).json({
-      message: error.message || "Failed to update location.",
+      message: "Failed to update location.",
     });
   }
 };
+
 module.exports = {
   getProfile,
   setApartment,

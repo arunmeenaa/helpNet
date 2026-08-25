@@ -23,15 +23,16 @@ const offerSchema = new mongoose.Schema(
       lat: {
         type: Number,
         default: null,
-        min: -90,
-        max: 90,
       },
       lng: {
         type: Number,
         default: null,
-        min: -180,
-        max: 180,
       },
+    },
+
+    locationUpdatedAt: {
+      type: Date,
+      default: null,
     },
 
     radius: {

@@ -32,12 +32,9 @@ const io = new Server(server, {
 });
 
 app.set("io", io);
-
 setupSocket(io);
-
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// CORS
 app.use(
   cors({
     origin: ["http://localhost:5173", "https://help-net-chi.vercel.app"],
@@ -45,34 +42,23 @@ app.use(
   }),
 );
 
-// Parse JSON
 app.use(express.json({ limit: "10mb" }));
 
 app.use(
   express.urlencoded({
     extended: true,
     limit: "10mb",
-  })
+  }),
 );
 
-// Passport
 app.use(passport.initialize());
 
-// ================= ROUTES =================
-
 app.use("/api/auth", authRoutes);
-
 app.use("/api/requests", requestRoutes);
-
 app.use("/api/offers", offerRoutes);
-
 app.use("/api/messages", messageRoutes);
-
 app.use("/api/profile", profileRoutes);
-
 app.use("/api/admin", adminRoutes);
-
-// ================= HEALTH CHECK =================
 
 app.get("/", (req, res) => {
   res.json({
@@ -81,24 +67,17 @@ app.get("/", (req, res) => {
   });
 });
 
-// ================= 404 HANDLER =================
-
 app.use((req, res) => {
   res.status(404).json({
     message: "API route not found",
   });
 });
 
-// ================= START SERVER =================
-
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
-    // Connect to MongoDB first
     await connectDB();
-
-    // Start HTTP + Socket.IO server
     server.listen(PORT, () => {
       console.log(`🚀 HelpNet server running on port ${PORT}`);
     });

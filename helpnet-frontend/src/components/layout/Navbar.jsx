@@ -16,15 +16,23 @@ import {
   Search,
   HandHelping,
   Mail,
+  MapPin,
 } from "lucide-react";
 import useDarkMode from "../../hooks/useDarkMode";
 import API_URL from "../../api";
+import {
+  getCachedLocationName,
+  getLocationName,
+} from "../../services/locationService";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [locationName, setLocationName] = useState(
+    getCachedLocationName() || "Locating...",
+  );
   const [unreadCount, setUnreadCount] = useState(0);
   const [dark, setDark] = useDarkMode();
   const isAdmin = user && user.role === "admin";
@@ -39,7 +47,6 @@ export default function Navbar() {
   const inboxPath = isAdmin ? "/inbox" : "/inbox";
   const hasNoApartment = user?.role === "resident" && !user?.apartmentId;
 
-  // Helper to check if a nav link matches the current route (used for the underline indicator)
   const isActivePath = (path) => location.pathname === path;
 
   const fetchUnreadCount = async () => {
@@ -114,7 +121,34 @@ export default function Navbar() {
       window.removeEventListener("local-storage-update", syncUser);
     };
   }, []);
+  useEffect(() => {
+    const latitude = user?.coordinates?.lat;
+    const longitude = user?.coordinates?.lng;
 
+    if (
+      !Number.isFinite(Number(latitude)) ||
+      !Number.isFinite(Number(longitude))
+    ) {
+      setLocationName("Location unavailable");
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadLocationName = async () => {
+      const name = await getLocationName(Number(latitude), Number(longitude));
+
+      if (!cancelled && name) {
+        setLocationName(name);
+      }
+    };
+
+    loadLocationName();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.coordinates?.lat, user?.coordinates?.lng]);
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target))
@@ -152,7 +186,9 @@ export default function Navbar() {
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-6">
           <div className="flex items-center gap-6 text-sm font-semibold text-gray-600 dark:text-gray-300">
-            {!user && <NavLink to="/" label="Home" active={isActivePath("/")} />}
+            {!user && (
+              <NavLink to="/" label="Home" active={isActivePath("/")} />
+            )}
 
             <NavLink
               to="/RequestsFeed"
@@ -165,7 +201,12 @@ export default function Navbar() {
               active={isActivePath("/findHelp")}
             />
           </div>
-
+          <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-full bg-white/20 dark:bg-white/5 backdrop-blur-md border border-white/30 dark:border-white/10">
+            <MapPin size={16} className="text-red-500" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200 max-w-[180px] truncate">
+              {locationName}
+            </span>
+          </div>
           <div className="flex items-center gap-4 border-l border-white/40 dark:border-white/10 pl-6">
             <button
               onClick={() => setDark(!dark)}
@@ -334,7 +375,11 @@ export default function Navbar() {
               <Moon size={22} />
             )}
           </button>
-          {user && !isAdmin  && (
+          <div className="flex items-center gap-1 mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <MapPin size={12} className="text-red-500" />
+            <span className="truncate">{locationName}</span>
+          </div>
+          {user && !isAdmin && (
             <button
               type="button"
               onClick={() => setInboxOpen((isVisible) => !isVisible)}
@@ -376,7 +421,7 @@ export default function Navbar() {
                 </div>
               </div>
             )}
-            {user && !isAdmin  && inboxOpen && (
+            {user && !isAdmin && inboxOpen && (
               <div className="mt-2 rounded-2xl border border-white/40 dark:border-white/10 bg-white/20 dark:bg-gray-900/20 backdrop-blur-2xl p-3">
                 <div className="flex items-center gap-3 px-2 py-2">
                   <div className="p-2 rounded-xl bg-blue-100/50 dark:bg-cyan-900/20 text-blue-600 dark:text-cyan-400">

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import useDarkMode from "./hooks/useDarkMode";
 import { Toaster, toast } from "react-hot-toast";
-
+import { syncCurrentLocation } from "./services/profileService";
 import ScrollToTop from "./components/common/ScrollToTop";
 import AppRoutes from "./routes/AppRoutes";
 import socket from "./socket";
@@ -12,11 +12,51 @@ function App() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useDarkMode();
 
-  const storedUser = localStorage.getItem("user");
-  const user = storedUser ? JSON.parse(storedUser) : null;
+  const getStoredUser = () => {
+    try {
+      const storedUser = localStorage.getItem("user");
+
+      if (!storedUser || storedUser === "undefined" || storedUser === "null") {
+        return null;
+      }
+
+      return JSON.parse(storedUser);
+    } catch (error) {
+      console.warn("Invalid stored user. Clearing it.");
+
+      localStorage.removeItem("user");
+
+      return null;
+    }
+  };
+
+  const user = getStoredUser();
 
   const userId = user?.id || user?._id;
+  useEffect(() => {
+    if (!userId) return;
 
+    const locationSynced = sessionStorage.getItem("location-synced");
+
+    if (locationSynced) {
+      console.log("📍 Location already synced this session.");
+      return;
+    }
+
+    sessionStorage.setItem("location-synced", "true");
+
+    console.log("📍 Syncing location...");
+
+    syncCurrentLocation()
+      .then(() => {
+        console.log("✅ User location synchronized");
+      })
+      .catch((error) => {
+        console.warn("📍 Location sync skipped:", error.message);
+
+        sessionStorage.removeItem("location-synced");
+      });
+  }, [userId]);
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const urlToken = params.get("token");

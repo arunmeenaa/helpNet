@@ -63,6 +63,11 @@ const UserSchema = new mongoose.Schema(
       },
     },
 
+    locationUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+
     bio: {
       type: String,
       trim: true,

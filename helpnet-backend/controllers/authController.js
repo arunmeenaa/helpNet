@@ -4,24 +4,16 @@ const User = require("../models/User");
 const Apartment = require("../models/Apartment");
 const generateToken = require("../utils/generateToken");
 
-// ==========================================
-// REGISTER
-// POST /api/auth/register
-// ==========================================
 const register = async (req, res) => {
   try {
     const { fullName, email, password, location, role } = req.body;
 
-    // ==========================================
-    // VALIDATION
-    // ==========================================
     if (!fullName || !email || !password) {
       return res.status(400).json({
         message: "Full name, email and password are required",
       });
     }
 
-    // Only these two roles are allowed
     if (!["resident", "owner"].includes(role)) {
       return res.status(400).json({
         message: "Invalid registration role",
@@ -30,9 +22,6 @@ const register = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // ==========================================
-    // CHECK EXISTING USER
-    // ==========================================
     const existingUser = await User.findOne({
       email: normalizedEmail,
     });
@@ -43,42 +32,24 @@ const register = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // HASH PASSWORD
-    // ==========================================
     const salt = await bcrypt.genSalt(10);
 
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // ==========================================
-    // CREATE USER
-    // ==========================================
     const newUser = new User({
       fullName: fullName.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-
       location: location ? location.trim() : "",
-
       apartmentId: null,
-
       isVerified: true,
-
       role: role,
-
       isEvicted: false,
     });
 
     await newUser.save();
-
-    // ==========================================
-    // GENERATE TOKEN
-    // ==========================================
     const token = generateToken(newUser);
 
-    // ==========================================
-    // RESPONSE
-    // ==========================================
     res.status(201).json({
       message:
         role === "owner"
@@ -86,7 +57,6 @@ const register = async (req, res) => {
           : "Resident registered successfully",
 
       token,
-
       user: {
         id: newUser._id,
         fullName: newUser.fullName,
@@ -104,10 +74,6 @@ const register = async (req, res) => {
   }
 };
 
-// ==========================================
-// LOGIN
-// POST /api/auth/login
-// ==========================================
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -130,7 +96,6 @@ const login = async (req, res) => {
       });
     }
 
-    // Google account
     if (!user.password) {
       return res.status(400).json({
         message: "This account uses Google login. Please continue with Google.",
@@ -145,9 +110,6 @@ const login = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // EVICTED RESIDENT CHECK
-    // ==========================================
     if (user.role === "resident" && user.isEvicted) {
       return res.status(403).json({
         message: "Your account has been removed from the apartment community.",
@@ -155,10 +117,8 @@ const login = async (req, res) => {
     }
 
     const token = generateToken(user);
-
     res.json({
       token,
-
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -177,10 +137,6 @@ const login = async (req, res) => {
   }
 };
 
-// ==========================================
-// GET CURRENT USER
-// GET /api/auth/me
-// ==========================================
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -203,21 +159,10 @@ const getMe = async (req, res) => {
   }
 };
 
-// ==========================================
-// SET APARTMENT
-// PATCH /api/auth/set-apartment
-// ==========================================
-// ==========================================
-// SET APARTMENT
-// PATCH /api/auth/set-apartment
-// ==========================================
 const setApartment = async (req, res) => {
   try {
     const { apartmentId } = req.body;
 
-    // ==========================================
-    // VALIDATE INPUT
-    // ==========================================
     if (!apartmentId || apartmentId.trim().length < 2) {
       return res.status(400).json({
         message: "Apartment ID is required.",
@@ -226,9 +171,6 @@ const setApartment = async (req, res) => {
 
     const cleanApartmentId = apartmentId.trim().toLowerCase();
 
-    // ==========================================
-    // CHECK IF APARTMENT EXISTS
-    // ==========================================
     const apartment = await Apartment.findOne({
       apartmentId: cleanApartmentId,
     });
@@ -239,9 +181,6 @@ const setApartment = async (req, res) => {
       });
     }
 
-    // ==========================================
-    // FIND USER
-    // ==========================================
     const user = await User.findById(req.user.id);
 
     if (!user) {
@@ -255,14 +194,8 @@ const setApartment = async (req, res) => {
 
     await user.save();
 
-    // ==========================================
-    // GENERATE NEW TOKEN
-    // ==========================================
     const token = generateToken(user);
 
-    // ==========================================
-    // RESPONSE
-    // ==========================================
     return res.json({
       message: "Apartment found and assigned successfully.",
       token,
@@ -282,10 +215,6 @@ const setApartment = async (req, res) => {
   }
 };
 
-// ==========================================
-// GOOGLE CALLBACK
-// GET /api/auth/google/callback
-// ==========================================
 const googleCallback = async (req, res) => {
   const frontendURL = process.env.FRONTEND_URL || "http://localhost:5173";
 
@@ -296,28 +225,16 @@ const googleCallback = async (req, res) => {
       return res.redirect(`${frontendURL}/login?error=google-auth-failed`);
     }
 
-    // ==========================================
-    // GENERATE TOKEN
-    // ==========================================
     const token = generateToken(user);
 
-    // ==========================================
-    // ADMIN
-    // ==========================================
     if (user.role === "admin") {
       return res.redirect(`${frontendURL}/admin?token=${token}`);
     }
 
-    // ==========================================
-    // USER WITHOUT APARTMENT
-    // ==========================================
     if (!user.apartmentId) {
       return res.redirect(`${frontendURL}/set-apartment?token=${token}`);
     }
 
-    // ==========================================
-    // NORMAL USER
-    // ==========================================
     return res.redirect(`${frontendURL}/dashboard?token=${token}`);
   } catch (error) {
     console.error("Google callback error:", error);

@@ -33,20 +33,21 @@ const requestSchema = new mongoose.Schema(
       type: Number,
       default: 2,
     },
-    // Coordinates of the person who created the post.
-    // [longitude, latitude] is kept as a simple pair so existing
-    // location strings remain backward compatible.
-    locationCoordinates: {
+
+    coordinates: {
       lat: {
         type: Number,
-        min: -90,
-        max: 90,
+        default: null,
       },
       lng: {
         type: Number,
-        min: -180,
-        max: 180,
+        default: null,
       },
+    },
+
+    locationUpdatedAt: {
+      type: Date,
+      default: null,
     },
     priority: {
       type: String,
