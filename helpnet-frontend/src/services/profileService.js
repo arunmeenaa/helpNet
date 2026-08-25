@@ -23,7 +23,12 @@ export const uploadUserProfilePicture = async (file) => {
   return data;
 };
 
-export const updateCurrentLocation = async (latitude, longitude) => {
+export const updateCurrentLocation = async (
+  latitude,
+  longitude,
+  accuracy = null,
+  source = "gps",
+) => {
   const token = localStorage.getItem("token");
 
   const response = await fetch(`${API_URL}/api/profile/location`, {
@@ -35,6 +40,8 @@ export const updateCurrentLocation = async (latitude, longitude) => {
     body: JSON.stringify({
       latitude,
       longitude,
+      accuracy,
+      source,
     }),
   });
 
@@ -49,59 +56,146 @@ export const updateCurrentLocation = async (latitude, longitude) => {
 
 export const syncCurrentLocation = async () => {
   if (!navigator.geolocation) {
-    console.warn("Geolocation is not supported.");
+    console.warn("📍 Geolocation is not supported.");
     return null;
   }
 
   return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        console.log("========== GPS ==========");
-        console.log("Latitude:", coords.latitude);
-        console.log("Longitude:", coords.longitude);
-        console.log("Accuracy:", coords.accuracy, "meters");
-        console.log("=========================");
+    let bestPosition = null;
+    let finished = false;
+    let watchId = null;
+    let timeoutId = null;
 
-        // Reject very inaccurate locations
-        if (coords.accuracy > 1000) {
-          console.warn(`⚠️ GPS accuracy too low: ${coords.accuracy} meters`);
+    const finish = async () => {
+      if (finished) return;
+
+      finished = true;
+
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+
+      if (!bestPosition) {
+        console.warn("⚠️ No GPS position received.");
+        resolve(null);
+        return;
+      }
+
+      const { latitude, longitude, accuracy } = bestPosition.coords;
+
+      console.log("========== BEST GPS ==========");
+      console.log("Latitude:", latitude);
+      console.log("Longitude:", longitude);
+      console.log("Accuracy:", accuracy, "meters");
+      console.log("==============================");
+
+      // 500m is acceptable for the 2km nearby system
+      if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        !Number.isFinite(accuracy) ||
+        accuracy > 500
+      ) {
+        console.warn(`⚠️ GPS accuracy too low: ${accuracy} meters`);
+
+        resolve(null);
+        return;
+      }
+
+      console.log("📍 Saving GPS location to server...");
+
+      try {
+        const data = await updateCurrentLocation(
+          latitude,
+          longitude,
+          accuracy,
+          "gps",
+        );
+
+        console.log("📍 Location API response:", data);
+
+        console.log("📍 Location API response:", data);
+
+        const updatedUser = data?.user || {
+          ...JSON.parse(localStorage.getItem("user") || "{}"),
+          coordinates: data.coordinates,
+          locationUpdatedAt: data.locationUpdatedAt,
+          locationSource: "gps",
+        };
+
+        if (!updatedUser?.coordinates?.lat || !updatedUser?.coordinates?.lng) {
+          console.error(
+            "❌ Location API did not return valid coordinates:",
+            data,
+          );
 
           resolve(null);
           return;
         }
 
-        try {
-          const data = await updateCurrentLocation(
-            coords.latitude,
-            coords.longitude,
-            coords.accuracy,
-          );
+        localStorage.setItem("user", JSON.stringify(updatedUser));
 
-          if (data.user) {
-            localStorage.setItem("user", JSON.stringify(data.user));
+        window.dispatchEvent(new Event("local-storage-update"));
 
-            window.dispatchEvent(new Event("local-storage-update"));
-          }
+        console.log("✅ GPS LOCATION SAVED:", updatedUser.coordinates);
 
-          resolve(data.user || data);
-        } catch (error) {
-          console.warn("Location sync failed:", error.message);
+        resolve(updatedUser);
+      } catch (error) {
+        console.error("❌ Failed to save GPS location:", error);
 
-          resolve(null);
+        resolve(null);
+      }
+    };
+
+    watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const accuracy = position.coords.accuracy;
+
+        console.log(
+          "📍 GPS reading:",
+          position.coords.latitude,
+          position.coords.longitude,
+          "accuracy:",
+          accuracy,
+        );
+
+        if (!bestPosition || accuracy < bestPosition.coords.accuracy) {
+          bestPosition = position;
+
+          console.log("⭐ Better GPS reading:", accuracy, "meters");
+        }
+
+        // 500m is good enough for HelpNet's 2km radius
+        if (accuracy <= 500) {
+          finish();
         }
       },
 
       (error) => {
-        console.error("GPS ERROR:", error.code, error.message);
+        console.warn("📍 GPS error:", error.code, error.message);
 
-        resolve(null);
+        // If we already received a usable GPS reading,
+        // DON'T throw it away.
+        if (bestPosition) {
+          finish();
+        } else {
+          resolve(null);
+        }
       },
 
       {
         enableHighAccuracy: true,
-        timeout: 30000,
         maximumAge: 0,
+        timeout: 30000,
       },
     );
+
+    timeoutId = setTimeout(() => {
+      finish();
+    }, 30000);
   });
 };

@@ -67,9 +67,29 @@ const getAllRequests = async (req, res) => {
       .populate("author", "fullName location")
       .sort({ createdAt: -1 });
 
-    const visibleRequests = requests.filter((request) =>
-      canViewRequest(request, user),
-    );
+    const visibleRequests = requests.filter((request) => {
+      const visible = canViewRequest(request, user);
+
+      if (request.visibility === "nearby") {
+        const requestLat = Number(request.locationCoordinates?.lat);
+
+        const requestLng = Number(request.locationCoordinates?.lng);
+
+        const userLat = Number(user.coordinates?.lat);
+
+        const userLng = Number(user.coordinates?.lng);
+
+        const distance =
+          Number.isFinite(requestLat) &&
+          Number.isFinite(requestLng) &&
+          Number.isFinite(userLat) &&
+          Number.isFinite(userLng)
+            ? distanceInKm(userLat, userLng, requestLat, requestLng)
+            : null;
+      }
+
+      return visible;
+    });
 
     res.json(visibleRequests);
   } catch (error) {
@@ -187,39 +207,65 @@ const createRequest = async (req, res) => {
       });
     }
 
-    const lat = Number(
-      latitude ??
-        coordinates?.lat ??
-        coordinates?.latitude ??
-        user.coordinates?.lat,
-    );
+    const userLat = Number(user.coordinates?.lat);
+    const userLng = Number(user.coordinates?.lng);
 
-    const lng = Number(
-      longitude ??
-        coordinates?.lng ??
-        coordinates?.longitude ??
-        user.coordinates?.lng,
-    );
+    if (
+      visibility === "nearby" &&
+      (!Number.isFinite(userLat) || !Number.isFinite(userLng))
+    ) {
+      return res.status(400).json({
+        message: "Please set your location before creating a nearby request.",
+      });
+    }
+
+    const lat =
+      visibility === "nearby"
+        ? userLat
+        : Number(
+            latitude ??
+              coordinates?.lat ??
+              coordinates?.latitude ??
+              user.coordinates?.lat,
+          );
+
+    const lng =
+      visibility === "nearby"
+        ? userLng
+        : Number(
+            longitude ??
+              coordinates?.lng ??
+              coordinates?.longitude ??
+              user.coordinates?.lng,
+          );
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({
+        message: "Unable to determine a valid location.",
+      });
+    }
 
     if (
       visibility === "nearby" &&
       (!Number.isFinite(lat) || !Number.isFinite(lng))
     ) {
+      console.error("❌ REFUSING NEARBY REQUEST WITH INVALID COORDINATES", {
+        lat,
+        lng,
+        userCoordinates: user.coordinates,
+      });
+
       return res.status(400).json({
         message:
-          "Location coordinates are required for nearby posts. Enable location access first.",
+          "Unable to determine a valid location. Please set your location again.",
       });
     }
-
     const newRequest = new Request({
       title,
       description,
       location,
       priority,
-
       author: req.user.id,
 
-      // Keep apartmentId for compatibility.
       apartmentId: user.apartmentId || null,
 
       visibility,
@@ -229,23 +275,27 @@ const createRequest = async (req, res) => {
           ? Math.min(Math.max(Number(radius) || 2, 1), 20)
           : 2,
 
-      locationCoordinates:
-        Number.isFinite(lat) && Number.isFinite(lng)
-          ? {
-              lat,
-              lng,
-            }
-          : undefined,
+      locationCoordinates: {
+        lat,
+        lng,
+      },
     });
-
+    console.log("========== CREATE REQUEST LOCATION ==========");
+    console.log("User ID:", user._id);
+    console.log("User coordinates:", user.coordinates);
+    console.log("userLat:", userLat);
+    console.log("userLng:", userLng);
+    console.log("Final lat:", lat);
+    console.log("Final lng:", lng);
+    console.log("Visibility:", visibility);
+    console.log("=============================================");
     const savedRequest = await newRequest.save();
-
+    console.log("========== SAVED REQUEST LOCATION ==========");
+    console.log("Saved coordinates:", savedRequest.locationCoordinates);
+    console.log("============================================");
     const io = req.app.get("io");
 
     if (io) {
-      // ==========================================
-      // APARTMENT REQUEST
-      // ==========================================
       if (visibility === "apartment") {
         io.to(user.apartmentId.toString()).emit("notification", {
           type: "new_request",
@@ -256,9 +306,6 @@ const createRequest = async (req, res) => {
         });
       }
 
-      // ==========================================
-      // NEARBY REQUEST
-      // ==========================================
       if (visibility === "nearby") {
         const nearbyUsers = await User.find({
           _id: { $ne: req.user.id },

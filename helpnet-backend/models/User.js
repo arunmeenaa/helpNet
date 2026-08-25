@@ -62,7 +62,11 @@ const UserSchema = new mongoose.Schema(
         default: null,
       },
     },
-
+    locationSource: {
+      type: String,
+      enum: ["gps", "manual"],
+      default: "gps",
+    },
     locationUpdatedAt: {
       type: Date,
       default: null,

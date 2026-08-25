@@ -184,29 +184,42 @@ const createOffer = async (req, res) => {
         message: "You must join an apartment to create an apartment offer.",
       });
     }
+    const userLat = Number(user.coordinates?.lat);
+    const userLng = Number(user.coordinates?.lng);
 
-    const lat = Number(
-      latitude ??
-        coordinates?.lat ??
-        coordinates?.latitude ??
-        user.coordinates?.lat,
-    );
-
-    const lng = Number(
-      longitude ??
-        coordinates?.lng ??
-        coordinates?.longitude ??
-        user.coordinates?.lng,
-    );
-
-    // Nearby posts require coordinates
     if (
       visibility === "nearby" &&
-      (!Number.isFinite(lat) || !Number.isFinite(lng))
+      (!Number.isFinite(userLat) || !Number.isFinite(userLng))
     ) {
       return res.status(400).json({
-        message:
-          "Location coordinates are required for nearby posts. Enable location access or update your profile location.",
+        message: "Please set your location before creating a nearby offer.",
+      });
+    }
+
+    const lat =
+      visibility === "nearby"
+        ? userLat
+        : Number(
+            latitude ??
+              coordinates?.lat ??
+              coordinates?.latitude ??
+              user.coordinates?.lat,
+          );
+
+    const lng =
+      visibility === "nearby"
+        ? userLng
+        : Number(
+            longitude ??
+              coordinates?.lng ??
+              coordinates?.longitude ??
+              user.coordinates?.lng,
+          );
+
+    // Never save invalid coordinates
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({
+        message: "Unable to determine a valid location.",
       });
     }
 
@@ -225,16 +238,13 @@ const createOffer = async (req, res) => {
 
       radius:
         visibility === "nearby"
-          ? Math.min(Math.max(Number(radius) || 5, 1), 20)
+          ? Math.min(Math.max(Number(radius) || 2, 1), 20)
           : 2,
 
-      locationCoordinates:
-        Number.isFinite(lat) && Number.isFinite(lng)
-          ? {
-              lat,
-              lng,
-            }
-          : undefined,
+      locationCoordinates: {
+        lat,
+        lng,
+      },
     });
 
     const savedOffer = await newOffer.save();
@@ -242,9 +252,6 @@ const createOffer = async (req, res) => {
     const io = req.app.get("io");
 
     if (io) {
-      // ==========================================
-      // APARTMENT OFFER
-      // ==========================================
       if (visibility === "apartment") {
         io.to(user.apartmentId.toString()).emit("notification", {
           type: "new_offer",
@@ -255,9 +262,6 @@ const createOffer = async (req, res) => {
         });
       }
 
-      // ==========================================
-      // NEARBY OFFER
-      // ==========================================
       if (visibility === "nearby") {
         const nearbyUsers = await User.find({
           _id: { $ne: req.user.id },

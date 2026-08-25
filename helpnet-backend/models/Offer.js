@@ -19,14 +19,14 @@ const offerSchema = new mongoose.Schema(
       default: "",
     },
 
-    coordinates: {
+    locationCoordinates: {
       lat: {
         type: Number,
-        default: null,
+        required: false,
       },
       lng: {
         type: Number,
-        default: null,
+        required: false,
       },
     },
 

@@ -34,17 +34,16 @@ const requestSchema = new mongoose.Schema(
       default: 2,
     },
 
-    coordinates: {
+    locationCoordinates: {
       lat: {
         type: Number,
-        default: null,
+        required: false,
       },
       lng: {
         type: Number,
-        default: null,
+        required: false,
       },
     },
-
     locationUpdatedAt: {
       type: Date,
       default: null,

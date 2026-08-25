@@ -114,11 +114,15 @@ const updateProfile = async (req, res) => {
 
 const updateLocation = async (req, res) => {
   try {
-    const { latitude, longitude } = req.body;
+    const { latitude, longitude, accuracy, source = "gps" } = req.body;
 
     const lat = Number(latitude);
     const lng = Number(longitude);
-
+    if (!["gps", "manual"].includes(source)) {
+      return res.status(400).json({
+        message: "Invalid location source.",
+      });
+    }
     if (
       !Number.isFinite(lat) ||
       !Number.isFinite(lng) ||
@@ -131,20 +135,40 @@ const updateLocation = async (req, res) => {
         message: "Invalid coordinates.",
       });
     }
-
+    if (
+      source === "gps" &&
+      (!Number.isFinite(Number(latitude)) ||
+        !Number.isFinite(Number(longitude)))
+    ) {
+      return res.status(400).json({
+        message: "Valid GPS coordinates are required.",
+      });
+    }
+    if (
+      !Number.isFinite(Number(latitude)) ||
+      !Number.isFinite(Number(longitude))
+    ) {
+      return res.status(400).json({
+        message: "Valid coordinates are required.",
+      });
+    }
     const user = await User.findByIdAndUpdate(
       req.user.id,
       {
         $set: {
           coordinates: {
-            lat,
-            lng,
+            lat: Number(latitude),
+            lng: Number(longitude),
           },
+          locationSource: source,
+          ...(accuracy !== undefined && {
+            locationAccuracy: Number(accuracy),
+          }),
           locationUpdatedAt: new Date(),
         },
       },
       {
-        returnDocument: "after",
+        new: true,
         runValidators: true,
       },
     ).lean();
@@ -155,13 +179,7 @@ const updateLocation = async (req, res) => {
       });
     }
 
-    console.log("========== UPDATE LOCATION ==========");
-    console.log("USER:", req.user.id);
-    console.log("LATITUDE:", lat);
-    console.log("LONGITUDE:", lng);
-    console.log("LOCATION UPDATED:", user.coordinates);
-    console.log("UPDATED AT:", user.locationUpdatedAt);
-    console.log("=====================================");
+ 
 
     return res.json({
       message: "Location updated successfully.",
