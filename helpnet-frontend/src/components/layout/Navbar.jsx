@@ -21,6 +21,7 @@ import useDarkMode from "../../hooks/useDarkMode";
 import API_URL from "../../api";
 
 import LocationSelector from "../common/LocationSelector";
+
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -34,6 +35,7 @@ export default function Navbar() {
   const mobileMenuRef = useRef(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const isAdmin = user?.role === "admin";
   const profilePath = user?.role === "owner" ? "/owner-profile" : "/profile";
@@ -144,6 +146,13 @@ export default function Navbar() {
     };
   }, []);
 
+  // Close menus whenever the route changes
+  useEffect(() => {
+    setOpen(false);
+    setDropdownOpen(false);
+    setInboxOpen(false);
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.clear();
     setUser(null);
@@ -153,12 +162,13 @@ export default function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-white/40 bg-white/30 shadow-[0_8px_32px_rgba(15,23,42,0.10)] backdrop-blur-xl backdrop-saturate-150 transition-colors duration-300 dark:border-white/10 dark:bg-gray-950/30">
-      <div className="relative mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        <Link to="/" className="group flex items-center gap-3">
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 md:py-4">
+        {/* Logo: never shrinks, so nothing can overlap it */}
+        <Link to="/" className="group flex shrink-0 items-center gap-2 sm:gap-3">
           <img
             src="logo1.png"
             alt="HelpNet logo"
-            className="h-9 w-9 object-contain"
+            className="h-9 w-9 shrink-0 object-contain"
           />
 
           <span className="bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-2xl font-extrabold tracking-tight text-transparent">
@@ -166,6 +176,7 @@ export default function Navbar() {
           </span>
         </Link>
 
+        {/* Desktop */}
         <div className="hidden items-center gap-6 md:flex">
           <div className="flex items-center gap-6 text-sm font-semibold text-gray-600 dark:text-gray-300">
             {!user && (
@@ -271,8 +282,8 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile controls */}
-        <div className="flex min-w-0 items-center gap-1 md:hidden">
+        {/* Mobile controls: icon buttons only (location moved to its own row below) */}
+        <div className="flex shrink-0 items-center gap-1 md:hidden">
           <button
             type="button"
             onClick={() => setDark(!dark)}
@@ -286,17 +297,16 @@ export default function Navbar() {
             )}
           </button>
 
-          <div className="min-w-0 flex-1 max-w-[150px] sm:max-w-[190px]">
-            <LocationSelector />
-          </div>
-
           {user && !isAdmin && (
             <button
               type="button"
-              onClick={() => setInboxOpen((value) => !value)}
+              onClick={() => {
+                setInboxOpen((value) => !value);
+                setOpen(true);
+              }}
               aria-expanded={inboxOpen}
               aria-label="Open inbox"
-              className="relative shrink-0 p-2 text-gray-800 dark:text-white"
+              className="mobile-toggle relative shrink-0 p-2 text-gray-800 dark:text-white"
             >
               <Mail size={22} />
 
@@ -319,15 +329,16 @@ export default function Navbar() {
           </button>
         </div>
 
+        {/* Mobile menu panel */}
         <div
           ref={mobileMenuRef}
-          className={`absolute left-4 right-4 top-20 z-[100] transition-all duration-300 md:hidden ${
+          className={`absolute left-4 right-4 top-full z-[100] mt-2 transition-all duration-300 md:hidden ${
             open
               ? "translate-x-0 opacity-100"
               : "pointer-events-none translate-x-10 opacity-0"
           }`}
         >
-          <div className="flex flex-col gap-1 rounded-3xl border border-white/50 bg-white/25 p-4 shadow-2xl backdrop-blur-3xl backdrop-saturate-150 dark:border-white/10 dark:bg-gray-950/25">
+          <div className="flex flex-col gap-1 rounded-3xl border border-white/50 bg-white p-4 shadow-2xl backdrop-blur-3xl backdrop-saturate-150 dark:border-white/10 dark:bg-gray-950">
             {user && (
               <div className="mb-2 flex items-center gap-3 rounded-2xl bg-white/25 p-3 backdrop-blur-md dark:bg-white/5">
                 <ProfileAvatar user={user} size="large" />
@@ -469,6 +480,13 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile-only location row: gets the full width, so it can't collide with the logo */}
+      <div className="border-t border-white/30 px-4 py-2 md:hidden dark:border-white/10">
+        <div className="min-w-0 max-w-full">
+          <LocationSelector />
+        </div>
+      </div>
     </nav>
   );
 }
@@ -558,7 +576,7 @@ function AccountDropdown({
   onLogout,
 }) {
   return (
-    <div className="absolute right-0 z-[100] mt-3 w-64 rounded-2xl border border-white/50 bg-white py-2 shadow-2xl  backdrop-saturate-150 dark:border-white/10 dark:bg-gray-900">
+    <div className="absolute right-0 z-[100] mt-3 w-64 rounded-2xl border border-white/50 bg-white py-2 shadow-2xl backdrop-saturate-150 dark:border-white/10 dark:bg-gray-900">
       <div className="mb-2 border-b border-white/40 px-4 py-3 dark:border-white/10">
         <p className="truncate text-sm font-bold text-gray-800 dark:text-gray-100">
           {user.fullName}
